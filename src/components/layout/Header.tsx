@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface HeaderProps {
   userEmail?: string;
@@ -25,13 +26,10 @@ interface HeaderProps {
 const Header = ({ userEmail = "user@example.com" }: HeaderProps) => {
   const [search, setSearch] = useState("");
   const isMobile = useIsMobile();
+  const { signOut, user } = useAuth();
   
-  const handleLogout = () => {
-    // Clear user data from localStorage
-    localStorage.removeItem("user");
-    // Redirect to login page
-    window.location.href = "/auth";
-  };
+  const email = user?.email || userEmail;
+  const userInitial = email.charAt(0).toUpperCase();
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -112,7 +110,7 @@ const Header = ({ userEmail = "user@example.com" }: HeaderProps) => {
               <Button variant="ghost" size="sm" className="relative h-8 rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-brand-400 text-white">
-                    {userEmail.charAt(0).toUpperCase()}
+                    {userInitial}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -127,7 +125,7 @@ const Header = ({ userEmail = "user@example.com" }: HeaderProps) => {
                 <Link to="/settings">Settings</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+              <DropdownMenuItem onClick={signOut} className="cursor-pointer">
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>

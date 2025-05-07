@@ -1,13 +1,14 @@
 
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
-    // Check if user is already logged in
-    const user = localStorage.getItem("user");
+    if (isLoading) return;
     
     if (user) {
       // If logged in, redirect to dashboard
@@ -16,7 +17,7 @@ const Index = () => {
       // If not logged in, redirect to auth page
       navigate("/auth");
     }
-  }, [navigate]);
+  }, [navigate, user, isLoading]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">

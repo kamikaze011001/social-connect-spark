@@ -11,26 +11,29 @@ import DashboardPage from "./pages/DashboardPage";
 import ContactsPage from "./pages/ContactsPage";
 import RemindersPage from "./pages/RemindersPage";
 import ConversationsPage from "./pages/ConversationsPage";
+import { AuthProvider } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/contacts" element={<ContactsPage />} />
-          <Route path="/reminders" element={<RemindersPage />} />
-          <Route path="/conversations" element={<ConversationsPage />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/contacts" element={<ContactsPage />} />
+            <Route path="/reminders" element={<RemindersPage />} />
+            <Route path="/conversations" element={<ConversationsPage />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

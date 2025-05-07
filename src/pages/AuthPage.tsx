@@ -2,17 +2,19 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthForm from "@/components/auth/AuthForm";
+import { useAuth } from "@/contexts/AuthContext";
 
 const AuthPage = () => {
   const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
-    // Check if user is already logged in
-    const user = localStorage.getItem("user");
+    if (isLoading) return;
+    
     if (user) {
       navigate("/dashboard");
     }
-  }, [navigate]);
+  }, [navigate, user, isLoading]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-r from-brand-50 to-purple-50">
@@ -29,7 +31,7 @@ const AuthPage = () => {
       </div>
       
       <div className="mt-8 text-center text-sm text-gray-500">
-        <p>Demo version - All data is stored locally</p>
+        <p>Secured by Supabase Authentication</p>
       </div>
     </div>
   );
