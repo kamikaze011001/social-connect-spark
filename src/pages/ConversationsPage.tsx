@@ -16,6 +16,7 @@ import { ConversationType, ConversationWithContactType } from "@/components/conv
 import ConversationForm from "@/components/conversations/ConversationForm";
 import ConversationCard from "@/components/conversations/ConversationCard";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Sample data for demonstration
 const SAMPLE_CONTACTS: ContactType[] = [
@@ -93,25 +94,27 @@ const SAMPLE_CONVERSATIONS: ConversationType[] = [
 const ConversationsPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [user, setUser] = useState<any>(null);
   const [conversations, setConversations] = useState<ConversationType[]>(SAMPLE_CONVERSATIONS);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterContact, setFilterContact] = useState<string>("all");
   const [filterMedium, setFilterMedium] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
+  const { user, isLoading } = useAuth();
+  
   useEffect(() => {
-    // Check if user is logged in
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
+    if (isLoading) return;
+    
+    if (!user) {
       navigate("/auth");
-    } else {
-      setUser(JSON.parse(storedUser));
     }
-  }, [navigate]);
+  }, [navigate, user, isLoading]);
 
-  if (!user) {
-    return null; // Don't render anything until we've checked auth status
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-lg">Loading...</p>
+      </div>
+    );
   }
 
   const getContactById = (id: string) => {

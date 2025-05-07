@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Calendar, Clock, Trash, Edit } from "lucide-react";
 import { ContactType } from "@/components/contacts/ContactCard";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Sample data for reminders
 const sampleContacts: ContactType[] = [
@@ -84,21 +85,23 @@ const reminders = [
 const RemindersPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("upcoming");
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
-    // Check if user is logged in
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
+    if (isLoading) return;
+    
+    if (!user) {
       navigate("/auth");
-    } else {
-      setUser(JSON.parse(storedUser));
     }
-  }, [navigate]);
+  }, [navigate, user, isLoading]);
 
-  if (!user) {
-    return null; // Don't render anything until we've checked auth status
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-lg">Loading...</p>
+      </div>
+    );
   }
 
   const getContactById = (id: string) => {
