@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
   User, Phone, Mail, Calendar, MoreVertical, MessageSquare, 
-  Edit, Trash, Clock
+  Edit, Trash, Clock, Linkedin, Twitter, Instagram, Facebook
 } from "lucide-react";
 
 export interface ContactType {
@@ -17,6 +17,17 @@ export interface ContactType {
   lastContacted?: string;
   imageUrl?: string;
   groups?: string[];
+  socialLinks?: {
+    linkedin?: string;
+    twitter?: string;
+    instagram?: string;
+    facebook?: string;
+  };
+  specialDates?: {
+    type: string;
+    date: string;
+    description?: string;
+  }[];
 }
 
 interface ContactCardProps {
@@ -40,6 +51,21 @@ const ContactCard = ({
       .map((n) => n[0])
       .join("")
       .toUpperCase();
+  };
+
+  const getSocialIcon = (platform: string) => {
+    switch (platform) {
+      case 'linkedin':
+        return <Linkedin className="h-4 w-4" />;
+      case 'twitter':
+        return <Twitter className="h-4 w-4" />;
+      case 'instagram':
+        return <Instagram className="h-4 w-4" />;
+      case 'facebook':
+        return <Facebook className="h-4 w-4" />;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -110,6 +136,31 @@ const ContactCard = ({
             <div className="flex items-center text-muted-foreground">
               <Clock className="h-4 w-4 mr-2" />
               <span>Last contacted {contact.lastContacted}</span>
+            </div>
+          )}
+          {contact.socialLinks && Object.entries(contact.socialLinks).length > 0 && (
+            <div className="flex items-center space-x-2 mt-2">
+              {Object.entries(contact.socialLinks).map(([platform, url]) => url && (
+                <a 
+                  key={platform} 
+                  href={url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {getSocialIcon(platform)}
+                </a>
+              ))}
+            </div>
+          )}
+          {contact.specialDates && contact.specialDates.length > 0 && (
+            <div className="mt-2">
+              {contact.specialDates.map((specialDate, index) => (
+                <div key={index} className="flex items-center text-muted-foreground mt-1">
+                  <Calendar className="h-4 w-4 mr-2 text-primary" />
+                  <span>{specialDate.type}: {new Date(specialDate.date).toLocaleDateString()}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
