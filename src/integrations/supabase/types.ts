@@ -9,6 +9,175 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      contact_groups: {
+        Row: {
+          contact_id: string
+          created_at: string
+          group_id: string
+          id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          group_id: string
+          id?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_groups_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          image_url: string | null
+          last_contacted: string | null
+          name: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          image_url?: string | null
+          last_contacted?: string | null
+          name: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          image_url?: string | null
+          last_contacted?: string | null
+          name?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conversation_notes: {
+        Row: {
+          content: string
+          conversation_id: string
+          id: string
+          timestamp: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          id?: string
+          timestamp?: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          id?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_notes_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          contact_id: string
+          created_at: string
+          date: string
+          duration: string | null
+          id: string
+          medium: string
+          summary: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          date: string
+          duration?: string | null
+          id?: string
+          medium: string
+          summary?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          date?: string
+          duration?: string | null
+          id?: string
+          medium?: string
+          summary?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -35,6 +204,91 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      reminders: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          date: string
+          frequency: string | null
+          id: string
+          is_completed: boolean | null
+          is_recurring: boolean | null
+          purpose: string
+          time: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          date: string
+          frequency?: string | null
+          id?: string
+          is_completed?: boolean | null
+          is_recurring?: boolean | null
+          purpose: string
+          time?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          date?: string
+          frequency?: string | null
+          id?: string
+          is_completed?: boolean | null
+          is_recurring?: boolean | null
+          purpose?: string
+          time?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      special_dates: {
+        Row: {
+          contact_id: string
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          type: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          date: string
+          description?: string | null
+          id?: string
+          type: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_dates_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

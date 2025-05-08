@@ -10,83 +10,123 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Clock, Trash, Edit } from "lucide-react";
+import { Calendar, Clock, Trash, Edit, CheckCircle } from "lucide-react";
 import { ContactType } from "@/components/contacts/ContactCard";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-// Sample data for reminders
-const sampleContacts: ContactType[] = [
-  {
-    id: "1",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    phone: "+1 (555) 123-4567",
-    lastContacted: "3 days ago",
-    groups: ["Friends", "Work"],
-  },
-  {
-    id: "2",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+1 (555) 987-6543",
-    lastContacted: "1 week ago",
-    groups: ["Family"],
-  },
-  {
-    id: "3",
-    name: "Alex Johnson",
-    email: "alex@example.com",
-    phone: "+1 (555) 555-5555",
-    lastContacted: "2 weeks ago",
-    groups: ["Friends"],
-  },
-];
-
-const reminders = [
-  { 
-    id: "1", 
-    contactId: "1", 
-    date: "2025-05-08", 
-    time: "10:00", 
-    purpose: "Catch up call",
-    isRecurring: false,
-    isCompleted: false,
-  },
-  { 
-    id: "2", 
-    contactId: "2", 
-    date: "2025-05-10", 
-    purpose: "Birthday wishes",
-    isRecurring: true,
-    frequency: "yearly",
-    isCompleted: false,
-  },
-  { 
-    id: "3", 
-    contactId: "3", 
-    date: "2025-05-15", 
-    time: "14:30", 
-    purpose: "Follow-up on project",
-    isRecurring: false,
-    isCompleted: false,
-  },
-  { 
-    id: "4", 
-    contactId: "1", 
-    date: "2025-04-30", 
-    time: "09:00", 
-    purpose: "Quarterly check-in",
-    isRecurring: true,
-    frequency: "quarterly",
-    isCompleted: true,
-  },
-];
+// Define Reminder type
+interface Reminder {
+  id: string;
+  contact_id: string | null;
+  date: string;
+  time: string | null;
+  purpose: string;
+  is_recurring: boolean | null;
+  frequency: string | null;
+  is_completed: boolean | null;
+}
 
 const RemindersPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState("upcoming");
   const { user, isLoading } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Fetch contacts
+  const { data: contacts = [], isLoading: contactsLoading } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .order("name");
+      
+      if (error) {
+        console.error("Error fetching contacts:", error);
+        toast.error("Failed to load contacts");
+        return [];
+      }
+      
+      return data.map(contact => ({
+        id: contact.id,
+        name: contact.name,
+        email: contact.email || "",
+        phone: contact.phone || "",
+        lastContacted: contact.last_contacted ? new Date(contact.last_contacted).toLocaleDateString() : null,
+        imageUrl: contact.image_url || undefined,
+      })) as ContactType[];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch reminders
+  const { data: reminders = [], isLoading: remindersLoading } = useQuery({
+    queryKey: ["reminders"],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("reminders")
+        .select("*")
+        .order("date");
+      
+      if (error) {
+        console.error("Error fetching reminders:", error);
+        toast.error("Failed to load reminders");
+        return [];
+      }
+      
+      return data as Reminder[];
+    },
+    enabled: !!user,
+  });
+
+  // Update reminder completion status
+  const updateReminderMutation = useMutation({
+    mutationFn: async ({ id, is_completed }: { id: string; is_completed: boolean }) => {
+      const { error } = await supabase
+        .from("reminders")
+        .update({ is_completed })
+        .eq("id", id);
+        
+      if (error) throw error;
+      return { id, is_completed };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      toast.success("Reminder updated");
+    },
+    onError: (error) => {
+      console.error("Error updating reminder:", error);
+      toast.error("Failed to update reminder");
+    },
+  });
+
+  // Delete reminder
+  const deleteReminderMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("reminders")
+        .delete()
+        .eq("id", id);
+        
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      toast.success("Reminder deleted");
+    },
+    onError: (error) => {
+      console.error("Error deleting reminder:", error);
+      toast.error("Failed to delete reminder");
+    },
+  });
 
   useEffect(() => {
     if (isLoading) return;
@@ -96,7 +136,7 @@ const RemindersPage = () => {
     }
   }, [navigate, user, isLoading]);
 
-  if (isLoading) {
+  if (isLoading || contactsLoading || remindersLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-lg">Loading...</p>
@@ -104,28 +144,39 @@ const RemindersPage = () => {
     );
   }
 
-  const getContactById = (id: string) => {
-    return sampleContacts.find(contact => contact.id === id) || {
-      id: "0",
-      name: "Unknown",
-      email: "unknown@example.com",
-    };
+  const getContactById = (id: string | null) => {
+    if (!id) return { id: "0", name: "No Contact", email: "" };
+    const contact = contacts.find(contact => contact.id === id);
+    return contact || { id: "0", name: "Unknown", email: "" };
   };
 
-  const upcomingReminders = reminders.filter(r => !r.isCompleted);
-  const completedReminders = reminders.filter(r => r.isCompleted);
+  const upcomingReminders = reminders.filter(r => !r.is_completed);
+  const completedReminders = reminders.filter(r => r.is_completed);
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    }).format(date);
+    try {
+      const date = new Date(dateString);
+      return format(date, 'MMM d, yyyy');
+    } catch (error) {
+      return dateString;
+    }
   };
 
-  const ReminderCard = ({ reminder }: { reminder: typeof reminders[0] }) => {
-    const contact = getContactById(reminder.contactId);
+  const toggleReminderCompletion = (reminder: Reminder) => {
+    updateReminderMutation.mutate({
+      id: reminder.id,
+      is_completed: !reminder.is_completed,
+    });
+  };
+
+  const deleteReminder = (id: string) => {
+    if (confirm("Are you sure you want to delete this reminder?")) {
+      deleteReminderMutation.mutate(id);
+    }
+  };
+
+  const ReminderCard = ({ reminder }: { reminder: Reminder }) => {
+    const contact = getContactById(reminder.contact_id);
     
     return (
       <Card className="mb-4">
@@ -153,15 +204,26 @@ const RemindersPage = () => {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              {reminder.isRecurring && (
+              {reminder.is_recurring && (
                 <Badge variant="outline">
                   {reminder.frequency?.charAt(0).toUpperCase() + reminder.frequency?.slice(1)}
                 </Badge>
               )}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => toggleReminderCompletion(reminder)}
+              >
+                <CheckCircle className={`h-5 w-5 ${reminder.is_completed ? 'text-green-500' : 'text-gray-300'}`} />
+              </Button>
               <Button variant="ghost" size="icon">
                 <Edit className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => deleteReminder(reminder.id)}
+              >
                 <Trash className="h-4 w-4" />
               </Button>
             </div>
@@ -231,7 +293,7 @@ const RemindersPage = () => {
                   <CardTitle>New Reminder</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ReminderForm contacts={sampleContacts} />
+                  <ReminderForm contacts={contacts} />
                 </CardContent>
               </Card>
             </div>
