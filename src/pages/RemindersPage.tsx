@@ -10,13 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Clock, Trash, Edit, CheckCircle } from "lucide-react";
+import { Calendar, Clock, Trash, Edit, CheckCircle, Bell, RefreshCw } from "lucide-react";
 import { ContactType } from "@/components/contacts/ContactCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Define Reminder type
 interface Reminder {
@@ -36,6 +37,7 @@ const RemindersPage = () => {
   const [activeTab, setActiveTab] = useState("upcoming");
   const { user, isLoading } = useAuth();
   const queryClient = useQueryClient();
+  const [checkingReminders, setCheckingReminders] = useState(false);
 
   // Fetch contacts
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
@@ -127,6 +129,32 @@ const RemindersPage = () => {
       toast.error("Failed to delete reminder");
     },
   });
+
+  // Check upcoming reminders manually
+  const checkUpcomingReminders = async () => {
+    if (!user) return;
+    
+    setCheckingReminders(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('check-upcoming-reminders');
+      
+      if (error) throw error;
+      
+      const processed = data.results?.filter(r => r.status === 'success').length || 0;
+      
+      if (processed > 0) {
+        toast.success(`Sent ${processed} reminder notification(s)`);
+      } else {
+        toast.info("No upcoming reminders to send notifications for");
+      }
+      
+    } catch (error) {
+      console.error("Error checking reminders:", error);
+      toast.error("Failed to check reminders");
+    } finally {
+      setCheckingReminders(false);
+    }
+  };
 
   useEffect(() => {
     if (isLoading) return;
@@ -243,11 +271,31 @@ const RemindersPage = () => {
       <div className="flex-1">
         <Header userEmail={user.email} />
         <div className="container py-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold">Reminders</h1>
-            <p className="text-muted-foreground">
-              Never forget to stay in touch with your contacts
-            </p>
+          <div className="mb-6 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-semibold">Reminders</h1>
+              <p className="text-muted-foreground">
+                Never forget to stay in touch with your contacts
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              className="gap-2" 
+              onClick={checkUpcomingReminders} 
+              disabled={checkingReminders}
+            >
+              {checkingReminders ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                <>
+                  <Bell className="h-4 w-4" />
+                  Check Reminders
+                </>
+              )}
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -267,9 +315,17 @@ const RemindersPage = () => {
                       </Button>
                     </div>
                   ) : (
-                    upcomingReminders.map(reminder => (
-                      <ReminderCard key={reminder.id} reminder={reminder} />
-                    ))
+                    <>
+                      <Alert className="mb-4 bg-muted/50">
+                        <Bell className="h-4 w-4" />
+                        <AlertDescription>
+                          Email notifications for upcoming reminders are sent automatically one day before the reminder date.
+                        </AlertDescription>
+                      </Alert>
+                      {upcomingReminders.map(reminder => (
+                        <ReminderCard key={reminder.id} reminder={reminder} />
+                      ))}
+                    </>
                   )}
                 </TabsContent>
 

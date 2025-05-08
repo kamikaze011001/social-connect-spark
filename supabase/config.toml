@@ -1,1 +1,8 @@
+
 project_id = "tcbmqlkejoejfrouoqfv"
+
+[functions.send-reminder-email]
+verify_jwt = true
+
+[functions.check-upcoming-reminders]
+verify_jwt = false

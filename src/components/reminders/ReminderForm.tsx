@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ContactType } from "../contacts/ContactCard";
-import { Calendar as CalendarIcon, Clock, Gift } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Gift, Bell } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ReminderFormProps {
   contacts: ContactType[];
@@ -29,6 +30,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
   const [purpose, setPurpose] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState("weekly");
+  const [sendNotification, setSendNotification] = useState(true);
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
@@ -58,6 +60,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
       setRecurringFrequency("weekly");
       setSpecialDateType("birthday");
       setNotifyInAdvance("7");
+      setSendNotification(true);
     },
     onError: (error) => {
       console.error("Error creating reminder:", error);
@@ -93,6 +96,12 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
     };
     
     createReminderMutation.mutate(reminderData);
+    
+    // If notification is enabled, we'll show a success message
+    // The actual notification will be handled by our scheduled task
+    if (sendNotification) {
+      toast.success("Email notification will be sent before the reminder");
+    }
   };
 
   // Find any special dates for the selected contact
@@ -192,6 +201,25 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
                 </div>
               </>
             )}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="notification" className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />
+                  Send Email Notification
+                </Label>
+                <Switch 
+                  id="notification" 
+                  checked={sendNotification} 
+                  onCheckedChange={setSendNotification} 
+                />
+              </div>
+              {sendNotification && (
+                <p className="text-xs text-muted-foreground">
+                  You'll receive an email notification the day before your reminder
+                </p>
+              )}
+            </div>
           </TabsContent>
           
           <TabsContent value="special" className="space-y-4 pt-2">
@@ -262,6 +290,20 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="notification-special" className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />
+                  Send Email Notification
+                </Label>
+                <Switch 
+                  id="notification-special" 
+                  checked={sendNotification} 
+                  onCheckedChange={setSendNotification} 
+                />
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
         
@@ -275,6 +317,14 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
             className="min-h-[100px]"
           />
         </div>
+
+        <Alert className="bg-muted/50 border-brand-200">
+          <Bell className="h-4 w-4" />
+          <AlertTitle>About Email Notifications</AlertTitle>
+          <AlertDescription>
+            Email notifications will be sent the day before the reminder date. Make sure your email address is up to date in your profile.
+          </AlertDescription>
+        </Alert>
         
         <Button type="submit" className="w-full" disabled={
           !purpose || 
