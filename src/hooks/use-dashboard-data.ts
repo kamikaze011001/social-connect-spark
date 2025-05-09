@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,8 +53,8 @@ export const useReminderStats = () => {
       
       // Get upcoming reminders count
       const today = new Date();
-      const nextWeek = new Date();
-      nextWeek.setDate(today.getDate() + 7);
+      const nextWeekDate = new Date();
+      nextWeekDate.setDate(today.getDate() + 7);
       
       const { count: thisWeek, error: thisWeekError } = await supabase
         .from("reminders")
@@ -63,27 +62,27 @@ export const useReminderStats = () => {
         .eq("user_id", user.id)
         .eq("is_completed", false)
         .gte("date", today.toISOString().split('T')[0])
-        .lt("date", nextWeek.toISOString().split('T')[0]);
+        .lt("date", nextWeekDate.toISOString().split('T')[0]);
       
       if (thisWeekError) throw thisWeekError;
       
       const twoWeeks = new Date();
       twoWeeks.setDate(today.getDate() + 14);
       
-      const { count: nextWeek, error: nextWeekError } = await supabase
+      const { count: nextWeekCount, error: nextWeekError } = await supabase
         .from("reminders")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("is_completed", false)
-        .gte("date", nextWeek.toISOString().split('T')[0])
+        .gte("date", nextWeekDate.toISOString().split('T')[0])
         .lt("date", twoWeeks.toISOString().split('T')[0]);
       
       if (nextWeekError) throw nextWeekError;
       
       return {
-        total: (thisWeek || 0) + (nextWeek || 0),
+        total: (thisWeek || 0) + (nextWeekCount || 0),
         thisWeek: thisWeek || 0,
-        nextWeek: nextWeek || 0
+        nextWeek: nextWeekCount || 0
       };
     },
     enabled: !!user,
