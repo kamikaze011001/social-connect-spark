@@ -54,17 +54,15 @@ const ProfilePage = () => {
       return data as Profile;
     },
     enabled: !!user,
-    onSuccess: (data) => {
-      if (data) {
-        setFirstName(data.first_name || "");
-        setLastName(data.last_name || "");
-      }
-    },
-    onError: (error) => {
-      console.error("Error fetching profile:", error);
-      toast.error("Failed to load profile");
-    }
   });
+  
+  // Update state when profile data is loaded
+  useEffect(() => {
+    if (profile) {
+      setFirstName(profile.first_name || "");
+      setLastName(profile.last_name || "");
+    }
+  }, [profile]);
 
   // Update profile mutation
   const updateProfileMutation = useMutation({

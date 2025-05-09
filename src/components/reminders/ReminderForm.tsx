@@ -24,7 +24,7 @@ interface ReminderFormProps {
 
 const ReminderForm = ({ contacts }: ReminderFormProps) => {
   const [activeTab, setActiveTab] = useState<string>("standard");
-  const [selectedContact, setSelectedContact] = useState<string>("");
+  const [selectedContact, setSelectedContact] = useState<string>("none");
   const [date, setDate] = useState<Date | undefined>();
   const [time, setTime] = useState<string>("");
   const [purpose, setPurpose] = useState("");
@@ -52,7 +52,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
       toast.success("Reminder created");
       
       // Reset form
-      setSelectedContact("");
+      setSelectedContact("none");
       setDate(undefined);
       setTime("");
       setPurpose("");
@@ -70,7 +70,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
   
   // Fetch special dates for selected contact
   const getSpecialDates = async (contactId: string) => {
-    if (!contactId) return [];
+    if (!contactId || contactId === "none") return [];
     
     try {
       const { data, error } = await supabase
@@ -105,7 +105,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
     
     const reminderData = {
       user_id: user.id,
-      contact_id: selectedContact || null,
+      contact_id: selectedContact !== "none" ? selectedContact : null,
       date: formattedDate,
       time: time || null,
       purpose,
@@ -124,7 +124,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
   };
 
   // Find any special dates for the selected contact
-  const selectedContactData = selectedContact ? 
+  const selectedContactData = selectedContact && selectedContact !== "none" ? 
     contacts.find(c => c.id === selectedContact) : null;
     
   // Placeholder for special dates - in a real app, these would be fetched from the database
@@ -140,7 +140,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
               <SelectValue placeholder="Select a contact" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No specific contact</SelectItem>
+              <SelectItem value="none">No specific contact</SelectItem>
               {contacts.map(contact => (
                 <SelectItem key={contact.id} value={contact.id}>
                   {contact.name}
@@ -243,7 +243,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
           </TabsContent>
           
           <TabsContent value="special" className="space-y-4 pt-2">
-            {selectedContact && specialDates.length > 0 ? (
+            {selectedContact && selectedContact !== "none" && specialDates.length > 0 ? (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="specialDate">Existing Special Dates</Label>

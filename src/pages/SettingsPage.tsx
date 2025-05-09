@@ -6,59 +6,54 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
-import { Bell, Clock, Globe, Moon, Palette, Save, Loader2 } from "lucide-react";
+import { AlertCircle, Bell, Settings, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
+// Define the user settings interface
 interface UserSettings {
   id: string;
-  email_notifications: boolean | null;
-  theme: string | null;
-  reminder_advance_notice: number | null;
-  timezone: string | null;
+  email_notifications: boolean;
+  theme: string;
+  reminder_advance_notice: number;
+  timezone: string;
+  created_at: string;
+  updated_at: string;
 }
 
 const SettingsPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { user, isLoading: authLoading } = useAuth();
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [theme, setTheme] = useState<string>("light");
-  const [reminderAdvanceNotice, setReminderAdvanceNotice] = useState<number>(24);
-  const [timezone, setTimezone] = useState<string>("UTC");
   const queryClient = useQueryClient();
-
-  const timezones = [
-    "UTC",
-    "America/New_York",
-    "America/Chicago",
-    "America/Denver",
-    "America/Los_Angeles",
-    "Europe/London",
-    "Europe/Paris",
-    "Asia/Tokyo",
-    "Asia/Shanghai",
-    "Australia/Sydney",
-    "Pacific/Auckland"
-  ];
-
-  const reminderOptions = [
-    { value: 6, label: "6 hours before" },
-    { value: 12, label: "12 hours before" },
-    { value: 24, label: "1 day before" },
-    { value: 48, label: "2 days before" },
-    { value: 72, label: "3 days before" },
-    { value: 168, label: "1 week before" }
-  ];
-
+  
+  // State for form fields
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [theme, setTheme] = useState("light");
+  const [reminderAdvanceNotice, setReminderAdvanceNotice] = useState("24");
+  const [timezone, setTimezone] = useState("UTC");
+  
   // Fetch user settings
   const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["userSettings"],
+    queryKey: ["settings"],
     queryFn: async () => {
       if (!user) return null;
       
@@ -70,9 +65,21 @@ const SettingsPage = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          // No settings found, need to create default settings
-          await createDefaultSettings();
-          return null;
+          // No settings found, create default settings
+          const { data: newSettings, error: insertError } = await supabase
+            .from("user_settings")
+            .insert({
+              id: user.id,
+              email_notifications: true,
+              theme: "light",
+              reminder_advance_notice: 24,
+              timezone: "UTC"
+            })
+            .select()
+            .single();
+          
+          if (insertError) throw insertError;
+          return newSettings;
         }
         throw error;
       }
@@ -80,84 +87,45 @@ const SettingsPage = () => {
       return data as UserSettings;
     },
     enabled: !!user,
-    onSuccess: (data) => {
-      if (data) {
-        setEmailNotifications(data.email_notifications ?? true);
-        setTheme(data.theme ?? "light");
-        setReminderAdvanceNotice(data.reminder_advance_notice ?? 24);
-        setTimezone(data.timezone ?? "UTC");
-      }
-    },
-    onError: (error) => {
-      console.error("Error fetching settings:", error);
-      toast.error("Failed to load settings");
-    }
   });
 
-  // Create default settings
-  const createDefaultSettings = async () => {
-    if (!user) return;
-    
-    try {
-      const { error } = await supabase
-        .from("user_settings")
-        .insert({
-          id: user.id,
-          email_notifications: true,
-          theme: "light",
-          reminder_advance_notice: 24,
-          timezone: "UTC"
-        });
-      
-      if (error) throw error;
-      
-      // Refetch settings
-      queryClient.invalidateQueries({ queryKey: ["userSettings"] });
-    } catch (error) {
-      console.error("Error creating settings:", error);
-      toast.error("Failed to create settings");
+  // Update settings when data is loaded
+  useEffect(() => {
+    if (settings) {
+      setEmailNotifications(settings.email_notifications);
+      setTheme(settings.theme);
+      setReminderAdvanceNotice(settings.reminder_advance_notice.toString());
+      setTimezone(settings.timezone);
     }
-  };
-
-  // Save settings mutation
-  const saveSettingsMutation = useMutation({
-    mutationFn: async () => {
+  }, [settings]);
+  
+  // Update settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (updatedSettings: Partial<UserSettings>) => {
       if (!user) throw new Error("User not authenticated");
       
       const { error } = await supabase
         .from("user_settings")
         .update({
-          email_notifications: emailNotifications,
-          theme: theme,
-          reminder_advance_notice: reminderAdvanceNotice,
-          timezone: timezone,
-          updated_at: new Date().toISOString()
+          ...updatedSettings,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", user.id);
       
       if (error) throw error;
       
-      return {
-        email_notifications: emailNotifications,
-        theme,
-        reminder_advance_notice: reminderAdvanceNotice,
-        timezone
-      };
+      return updatedSettings;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["userSettings"] });
-      toast.success("Settings saved successfully");
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      toast.success("Settings updated successfully");
     },
     onError: (error: any) => {
-      console.error("Error saving settings:", error);
-      toast.error("Failed to save settings");
-    }
+      console.error("Error updating settings:", error);
+      toast.error("Failed to update settings");
+    },
   });
-
-  const handleSaveSettings = () => {
-    saveSettingsMutation.mutate();
-  };
-
+  
   useEffect(() => {
     if (authLoading) return;
     
@@ -165,6 +133,28 @@ const SettingsPage = () => {
       navigate("/auth");
     }
   }, [navigate, user, authLoading]);
+  
+  // Handlers for settings changes
+  const handleSaveSettings = () => {
+    updateSettingsMutation.mutate({
+      email_notifications: emailNotifications,
+      theme,
+      reminder_advance_notice: parseInt(reminderAdvanceNotice),
+      timezone,
+    });
+  };
+  
+  const timezones = [
+    { value: "UTC", label: "UTC (Coordinated Universal Time)" },
+    { value: "America/New_York", label: "Eastern Time (US & Canada)" },
+    { value: "America/Chicago", label: "Central Time (US & Canada)" },
+    { value: "America/Denver", label: "Mountain Time (US & Canada)" },
+    { value: "America/Los_Angeles", label: "Pacific Time (US & Canada)" },
+    { value: "Europe/London", label: "London" },
+    { value: "Europe/Paris", label: "Paris" },
+    { value: "Asia/Tokyo", label: "Tokyo" },
+    { value: "Australia/Sydney", label: "Sydney" },
+  ];
 
   if (authLoading || settingsLoading) {
     return (
@@ -190,127 +180,126 @@ const SettingsPage = () => {
         <div className="container py-6">
           <div className="mb-6">
             <h1 className="text-2xl font-semibold">Settings</h1>
-            <p className="text-muted-foreground">Manage your application preferences</p>
+            <p className="text-muted-foreground">
+              Manage your app preferences and notification settings
+            </p>
           </div>
-          
-          <div className="grid grid-cols-1 gap-6">
+
+          <div className="grid gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>Configure how you receive notifications</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Notification Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure how you receive notifications
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <Bell className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <Label htmlFor="email-notifications" className="font-medium">Email Notifications</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receive email alerts for upcoming reminders
-                      </p>
-                    </div>
-                  </div>
-                  <Switch 
-                    id="email-notifications" 
-                    checked={emailNotifications} 
-                    onCheckedChange={setEmailNotifications} 
+                  <Label htmlFor="email-notifications" className="flex-grow">
+                    Email Notifications
+                    <p className="text-sm font-normal text-muted-foreground">
+                      Receive emails for reminders and other important updates
+                    </p>
+                  </Label>
+                  <Switch
+                    id="email-notifications"
+                    checked={emailNotifications}
+                    onCheckedChange={setEmailNotifications}
                   />
                 </div>
                 
-                <div className="flex items-start space-x-4">
-                  <Clock className="h-5 w-5 text-muted-foreground mt-1" />
-                  <div className="grid w-full gap-1.5">
-                    <Label htmlFor="reminder-advance">Reminder Advance Notice</Label>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      How far in advance should we notify you about upcoming reminders
-                    </p>
-                    <Select 
-                      value={String(reminderAdvanceNotice)} 
-                      onValueChange={(value) => setReminderAdvanceNotice(Number(value))}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select how far in advance" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {reminderOptions.map(option => (
-                          <SelectItem key={option.value} value={String(option.value)}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reminder-notice">Reminder Advance Notice</Label>
+                  <Select
+                    value={reminderAdvanceNotice}
+                    onValueChange={setReminderAdvanceNotice}
+                  >
+                    <SelectTrigger id="reminder-notice">
+                      <SelectValue placeholder="Select hours" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 hour before</SelectItem>
+                      <SelectItem value="3">3 hours before</SelectItem>
+                      <SelectItem value="12">12 hours before</SelectItem>
+                      <SelectItem value="24">24 hours before</SelectItem>
+                      <SelectItem value="48">48 hours before</SelectItem>
+                      <SelectItem value="72">72 hours before</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    How far in advance should we send reminder notifications
+                  </p>
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
-                <CardTitle>Preferences</CardTitle>
-                <CardDescription>Customize your application experience</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  App Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure your app preferences
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <Palette className="h-5 w-5 text-muted-foreground mt-1" />
-                  <div className="grid w-full gap-1.5">
-                    <Label htmlFor="theme">Theme</Label>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Choose your preferred visual theme
-                    </p>
-                    <Select value={theme} onValueChange={setTheme}>
-                      <SelectTrigger id="theme" className="w-full">
-                        <SelectValue placeholder="Select theme" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="light">Light</SelectItem>
-                        <SelectItem value="dark">Dark</SelectItem>
-                        <SelectItem value="system">System</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="theme">Theme</Label>
+                  <Select value={theme} onValueChange={setTheme}>
+                    <SelectTrigger id="theme">
+                      <SelectValue placeholder="Select theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                
-                <div className="flex items-start space-x-4">
-                  <Globe className="h-5 w-5 text-muted-foreground mt-1" />
-                  <div className="grid w-full gap-1.5">
-                    <Label htmlFor="timezone">Timezone</Label>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Choose your timezone for accurate reminder times
-                    </p>
-                    <Select value={timezone} onValueChange={setTimezone}>
-                      <SelectTrigger id="timezone" className="w-full">
-                        <SelectValue placeholder="Select timezone" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-80 overflow-y-auto">
-                        {timezones.map((tz) => (
-                          <SelectItem key={tz} value={tz}>
-                            {tz.replace('_', ' ')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Select value={timezone} onValueChange={setTimezone}>
+                    <SelectTrigger id="timezone">
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {timezones.map((tz) => (
+                        <SelectItem key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                <Alert variant="default" className="bg-muted/50 border-amber-300">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Some settings may require a page refresh to take effect.
+                  </AlertDescription>
+                </Alert>
+
+                <Button 
+                  onClick={handleSaveSettings} 
+                  className="w-full"
+                  disabled={updateSettingsMutation.isPending}
+                >
+                  {updateSettingsMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Settings"
+                  )}
+                </Button>
               </CardContent>
             </Card>
-            
-            <Button 
-              onClick={handleSaveSettings} 
-              disabled={saveSettingsMutation.isPending} 
-              className="w-full max-w-xs ml-auto"
-            >
-              {saveSettingsMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Settings
-                </>
-              )}
-            </Button>
           </div>
         </div>
       </div>
