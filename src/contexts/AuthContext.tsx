@@ -9,6 +9,7 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   isLoading: true,
   signOut: async () => {},
+  refreshSession: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -69,8 +71,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  const refreshSession = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+      }
+    } catch (error: any) {
+      console.error("Error refreshing session:", error);
+      toast.error(error.message || "Session refresh failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, signOut, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );
