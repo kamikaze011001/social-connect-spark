@@ -1,39 +1,24 @@
 
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MessageSquare, UserCheck, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Calendar, MessageSquare, UserCheck, ArrowRight, Clock } from "lucide-react";
+import DashboardSkeleton from "./DashboardSkeleton";
+import { ReminderActions } from "./ReminderActions";
+import { ContactActions } from "./ContactActions";
+import { 
+  useContactStats, 
+  useReminderStats, 
+  useConversationStats,
+  useMonthlyConversationData,
+  useUpcomingReminders,
+  useNeglectedContacts,
+  useRecentActivity
+} from "@/hooks/use-dashboard-data";
 import { ContactType } from "../contacts/ContactCard";
-
-// Sample data for the dashboard
-const contactsData = [
-  { name: "Jan", count: 15 },
-  { name: "Feb", count: 8 },
-  { name: "Mar", count: 22 },
-  { name: "Apr", count: 13 },
-  { name: "May", count: 18 },
-  { name: "Jun", count: 12 },
-];
-
-const upcomingReminders = [
-  { id: "1", contactName: "Jane Smith", date: "Tomorrow at 10:00 AM", type: "Call" },
-  { id: "2", contactName: "John Doe", date: "May 10, 2025", type: "Birthday" },
-  { id: "3", contactName: "Alex Johnson", date: "May 15, 2025", type: "Follow-up" },
-];
-
-const neglectedContacts = [
-  { id: "1", name: "Michael Brown", email: "michael@example.com", lastContacted: "3 months ago" },
-  { id: "2", name: "Sarah Wilson", email: "sarah@example.com", lastContacted: "2 months ago" },
-];
-
-const recentActivity = [
-  { id: "1", contactName: "Jane Smith", action: "Called", date: "2 days ago" },
-  { id: "2", contactName: "John Doe", action: "Emailed", date: "5 days ago" },
-];
 
 interface DashboardProps {
   contacts?: ContactType[];
@@ -41,6 +26,28 @@ interface DashboardProps {
 
 const Dashboard = ({ contacts = [] }: DashboardProps) => {
   const navigate = useNavigate();
+  
+  // Fetch dashboard data
+  const { data: contactStats, isLoading: loadingContacts } = useContactStats();
+  const { data: reminderStats, isLoading: loadingReminders } = useReminderStats();
+  const { data: conversationStats, isLoading: loadingConversations } = useConversationStats();
+  const { data: monthlyData, isLoading: loadingMonthlyData } = useMonthlyConversationData();
+  const { data: upcomingReminders, isLoading: loadingUpcomingReminders } = useUpcomingReminders();
+  const { data: neglectedContacts, isLoading: loadingNeglectedContacts } = useNeglectedContacts();
+  const { data: recentActivity, isLoading: loadingRecentActivity } = useRecentActivity();
+  
+  const isLoading = 
+    loadingContacts || 
+    loadingReminders || 
+    loadingConversations || 
+    loadingMonthlyData ||
+    loadingUpcomingReminders ||
+    loadingNeglectedContacts ||
+    loadingRecentActivity;
+  
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
   
   return (
     <div className="space-y-4">
@@ -52,9 +59,9 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{contacts.length || 25}</div>
+            <div className="text-2xl font-bold">{contactStats?.total || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +5 from last month
+              +{contactStats?.new || 0} from last month
             </p>
           </CardContent>
         </Card>
@@ -64,9 +71,9 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">{reminderStats?.total || 0}</div>
             <p className="text-xs text-muted-foreground">
-              3 this week, 5 next week
+              {reminderStats?.thisWeek || 0} this week, {reminderStats?.nextWeek || 0} next week
             </p>
           </CardContent>
         </Card>
@@ -76,9 +83,9 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{conversationStats?.total || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +3 from last week
+              +{conversationStats?.recent || 0} in the last week
             </p>
           </CardContent>
         </Card>
@@ -95,12 +102,12 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
         <CardContent className="px-2">
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={contactsData}>
+              <BarChart data={monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" name="Conversations" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -121,7 +128,7 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
             </div>
           </CardHeader>
           <CardContent>
-            {upcomingReminders.length === 0 ? (
+            {!upcomingReminders || upcomingReminders.length === 0 ? (
               <p className="text-sm text-muted-foreground">No upcoming reminders</p>
             ) : (
               <div className="space-y-4">
@@ -133,7 +140,10 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
                         <p className="text-sm text-muted-foreground">{reminder.date}</p>
                       </div>
                     </div>
-                    <Badge variant="outline">{reminder.type}</Badge>
+                    <div className="flex space-x-2">
+                      <Badge variant="outline">{reminder.type}</Badge>
+                      <ReminderActions reminderId={reminder.id} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -153,7 +163,7 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
             </div>
           </CardHeader>
           <CardContent>
-            {neglectedContacts.length === 0 ? (
+            {!neglectedContacts || neglectedContacts.length === 0 ? (
               <p className="text-sm text-muted-foreground">No neglected contacts</p>
             ) : (
               <div className="space-y-4">
@@ -170,7 +180,7 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
                         <p className="text-sm text-muted-foreground">{contact.lastContacted}</p>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline">Reach Out</Button>
+                    <ContactActions contactId={contact.id} contactName={contact.name} />
                   </div>
                 ))}
               </div>
@@ -185,7 +195,7 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          {recentActivity.length === 0 ? (
+          {!recentActivity || recentActivity.length === 0 ? (
             <p className="text-muted-foreground">No recent activity</p>
           ) : (
             <div className="space-y-4">
