@@ -10,106 +10,169 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Search, Plus, Calendar } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { ContactType } from "@/components/contacts/ContactCard";
 import { ConversationType, ConversationWithContactType } from "@/components/conversations/ConversationType";
 import ConversationForm from "@/components/conversations/ConversationForm";
 import ConversationCard from "@/components/conversations/ConversationCard";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-
-// Sample data for demonstration
-const SAMPLE_CONTACTS: ContactType[] = [
-  {
-    id: "1",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    phone: "+1 (555) 123-4567",
-    lastContacted: "3 days ago",
-    groups: ["Friends", "Work"],
-    socialLinks: {
-      linkedin: "https://linkedin.com/in/janesmith",
-      twitter: "https://twitter.com/janesmith"
-    }
-  },
-  {
-    id: "2",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+1 (555) 987-6543",
-    lastContacted: "1 week ago",
-    groups: ["Family"],
-    socialLinks: {
-      facebook: "https://facebook.com/johndoe"
-    }
-  },
-  {
-    id: "3",
-    name: "Alex Johnson",
-    email: "alex@example.com",
-    phone: "+1 (555) 555-5555",
-    lastContacted: "2 weeks ago",
-    groups: ["Friends"],
-    socialLinks: {
-      instagram: "https://instagram.com/alexj"
-    }
-  },
-];
-
-// Sample conversations
-const SAMPLE_CONVERSATIONS: ConversationType[] = [
-  {
-    id: "1",
-    contactId: "1",
-    date: "2025-05-01",
-    medium: "phone",
-    duration: "30 minutes",
-    summary: "Discussed upcoming project collaboration and next steps. Jane will send the proposal by next week.",
-    notes: [
-      { id: "n1", content: "Follow up about the budget estimates", timestamp: "2025-05-01T14:30:00Z" },
-      { id: "n2", content: "Share the project timeline document", timestamp: "2025-05-01T14:35:00Z" }
-    ]
-  },
-  {
-    id: "2",
-    contactId: "2",
-    date: "2025-04-28",
-    medium: "email",
-    summary: "John shared family photos from the recent vacation. Mentioned they're planning to visit in July.",
-    notes: [
-      { id: "n3", content: "Check calendar for July availability", timestamp: "2025-04-28T09:15:00Z" }
-    ]
-  },
-  {
-    id: "3",
-    contactId: "3",
-    date: "2025-04-25",
-    medium: "in-person",
-    duration: "2 hours",
-    summary: "Coffee meetup to catch up. Alex is starting a new job next month and moving to Seattle.",
-    notes: []
-  }
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const ConversationsPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [conversations, setConversations] = useState<ConversationType[]>(SAMPLE_CONVERSATIONS);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterContact, setFilterContact] = useState<string>("all");
   const [filterMedium, setFilterMedium] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   
   useEffect(() => {
-    if (isLoading) return;
+    if (authLoading) return;
     
     if (!user) {
       navigate("/auth");
     }
-  }, [navigate, user, isLoading]);
+  }, [navigate, user, authLoading]);
 
-  if (isLoading) {
+  // Fetch contacts
+  const { data: contacts = [], isLoading: contactsLoading } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("name");
+      
+      if (error) {
+        console.error("Error fetching contacts:", error);
+        toast.error("Failed to load contacts");
+        return [];
+      }
+      
+      return data.map(contact => ({
+        id: contact.id,
+        name: contact.name,
+        email: contact.email || "",
+        phone: contact.phone || ""
+      })) as ContactType[];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch conversations
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from("conversations")
+        .select(`
+          *,
+          conversation_notes(*)
+        `)
+        .eq("user_id", user.id)
+        .order("date", { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching conversations:", error);
+        toast.error("Failed to load conversations");
+        return [];
+      }
+      
+      return data.map(conv => ({
+        id: conv.id,
+        contactId: conv.contact_id,
+        date: conv.date,
+        medium: conv.medium,
+        duration: conv.duration || "",
+        summary: conv.summary || "",
+        notes: conv.conversation_notes ? conv.conversation_notes.map((note: any) => ({
+          id: note.id,
+          content: note.content,
+          timestamp: note.timestamp
+        })) : []
+      })) as ConversationType[];
+    },
+    enabled: !!user,
+  });
+
+  // Add conversation mutation
+  const addConversationMutation = useMutation({
+    mutationFn: async (conversation: Omit<ConversationType, "id">) => {
+      // First insert the conversation
+      const { data: newConversation, error } = await supabase
+        .from("conversations")
+        .insert({
+          contact_id: conversation.contactId,
+          date: conversation.date,
+          medium: conversation.medium,
+          duration: conversation.duration || null,
+          summary: conversation.summary || null,
+          user_id: user!.id
+        })
+        .select("*")
+        .single();
+      
+      if (error) throw error;
+      
+      // If there are notes, insert them as well
+      if (conversation.notes && conversation.notes.length > 0) {
+        const notesToInsert = conversation.notes.map(note => ({
+          conversation_id: newConversation.id,
+          content: note.content,
+        }));
+        
+        const { error: notesError } = await supabase
+          .from("conversation_notes")
+          .insert(notesToInsert);
+        
+        if (notesError) throw notesError;
+      }
+      
+      return newConversation;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      setIsDialogOpen(false);
+      toast.success("Conversation saved successfully");
+    },
+    onError: (error: any) => {
+      console.error("Error adding conversation:", error);
+      toast.error(error.message || "Failed to add conversation");
+    },
+  });
+
+  // Delete conversation mutation
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("conversations")
+        .delete()
+        .eq("id", id);
+        
+      if (error) throw error;
+      
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success("Conversation deleted successfully");
+    },
+    onError: (error: any) => {
+      console.error("Error deleting conversation:", error);
+      toast.error(error.message || "Failed to delete conversation");
+    },
+  });
+
+  if (authLoading || contactsLoading || conversationsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-lg">Loading...</p>
@@ -117,34 +180,35 @@ const ConversationsPage = () => {
     );
   }
 
+  if (!user) {
+    return null; // Don't render anything until we've checked auth status
+  }
+
   const getContactById = (id: string) => {
-    return SAMPLE_CONTACTS.find(contact => contact.id === id) || {
+    return contacts.find(contact => contact.id === id) || {
       id: "0",
       name: "Unknown",
       email: "unknown@example.com",
     };
   };
 
-  const handleSaveConversation = (conversation: ConversationType) => {
-    setConversations([...conversations, conversation]);
-    setIsDialogOpen(false);
-    
-    // Update the lastContacted field of the contact
-    const contactName = getContactById(conversation.contactId).name;
-    toast.success(`Conversation with ${contactName} saved successfully`);
+  const handleSaveConversation = (conversation: Omit<ConversationType, "id">) => {
+    addConversationMutation.mutate(conversation);
   };
 
   const handleDeleteConversation = (id: string) => {
-    setConversations(conversations.filter(conv => conv.id !== id));
-    toast.success("Conversation deleted successfully");
+    const confirmDelete = window.confirm("Are you sure you want to delete this conversation?");
+    if (confirmDelete) {
+      deleteConversationMutation.mutate(id);
+    }
   };
 
-  // Filtered and enhanced conversations
+  // Enhanced conversations with contact information
   const enhancedConversations: ConversationWithContactType[] = conversations
     .filter(conv => {
       const contact = getContactById(conv.contactId);
       const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          conv.summary.toLowerCase().includes(searchTerm.toLowerCase());
+                          (conv.summary && conv.summary.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesContact = filterContact === "all" || conv.contactId === filterContact;
       const matchesMedium = filterMedium === "all" || conv.medium === filterMedium;
       
@@ -153,8 +217,7 @@ const ConversationsPage = () => {
     .map(conv => ({
       ...conv,
       contact: getContactById(conv.contactId)
-    }))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort by newest first
+    }));
 
   return (
     <div className="flex min-h-screen">
@@ -164,7 +227,7 @@ const ConversationsPage = () => {
         </div>
       )}
       <div className="flex-1">
-        <Header userEmail={user.email} />
+        <Header userEmail={user.email || ""} />
         <div className="container py-6">
           <div className="mb-6">
             <h1 className="text-2xl font-semibold">Conversations</h1>
@@ -196,7 +259,7 @@ const ConversationsPage = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Contacts</SelectItem>
-                      {SAMPLE_CONTACTS.map((contact) => (
+                      {contacts.map((contact) => (
                         <SelectItem key={contact.id} value={contact.id}>
                           {contact.name}
                         </SelectItem>
@@ -230,7 +293,7 @@ const ConversationsPage = () => {
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[600px]">
                       <ConversationForm 
-                        contacts={SAMPLE_CONTACTS}
+                        contacts={contacts}
                         onSave={handleSaveConversation}
                       />
                     </DialogContent>
@@ -264,7 +327,7 @@ const ConversationsPage = () => {
               <Card>
                 <CardContent className="pt-6">
                   <ConversationForm
-                    contacts={SAMPLE_CONTACTS}
+                    contacts={contacts}
                     onSave={handleSaveConversation}
                   />
                 </CardContent>

@@ -62,11 +62,30 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
       setNotifyInAdvance("7");
       setSendNotification(true);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Error creating reminder:", error);
       toast.error("Failed to create reminder");
     },
   });
+  
+  // Fetch special dates for selected contact
+  const getSpecialDates = async (contactId: string) => {
+    if (!contactId) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from("special_dates")
+        .select("*")
+        .eq("contact_id", contactId);
+        
+      if (error) throw error;
+      
+      return data || [];
+    } catch (error) {
+      console.error("Error fetching special dates:", error);
+      return [];
+    }
+  };
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +127,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
   const selectedContactData = selectedContact ? 
     contacts.find(c => c.id === selectedContact) : null;
     
+  // Placeholder for special dates - in a real app, these would be fetched from the database
   const specialDates = selectedContactData?.specialDates || [];
 
   return (
@@ -328,7 +348,8 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
         
         <Button type="submit" className="w-full" disabled={
           !purpose || 
-          (activeTab === "standard" && !isRecurring && !date)
+          (activeTab === "standard" && !isRecurring && !date) ||
+          createReminderMutation.isPending
         }>
           {createReminderMutation.isPending ? "Setting reminder..." : "Set Reminder"}
         </Button>

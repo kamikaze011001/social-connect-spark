@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Bell, Clock, Globe, Moon, Palette, Save } from "lucide-react";
+import { Bell, Clock, Globe, Moon, Palette, Save, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface UserSettings {
   id: string;
@@ -25,13 +26,12 @@ interface UserSettings {
 const SettingsPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user, isLoading } = useAuth();
-  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [theme, setTheme] = useState<string>("light");
   const [reminderAdvanceNotice, setReminderAdvanceNotice] = useState<number>(24);
   const [timezone, setTimezone] = useState<string>("UTC");
-  const [isSaving, setIsSaving] = useState(false);
+  const queryClient = useQueryClient();
 
   const timezones = [
     "UTC",
@@ -56,44 +56,45 @@ const SettingsPage = () => {
     { value: 168, label: "1 week before" }
   ];
 
-  useEffect(() => {
-    if (isLoading) return;
-    
-    if (!user) {
-      navigate("/auth");
-    } else {
-      fetchSettings();
-    }
-  }, [navigate, user, isLoading]);
-
-  const fetchSettings = async () => {
-    try {
+  // Fetch user settings
+  const { data: settings, isLoading: settingsLoading } = useQuery({
+    queryKey: ["userSettings"],
+    queryFn: async () => {
+      if (!user) return null;
+      
       const { data, error } = await supabase
         .from("user_settings")
         .select("*")
-        .eq("id", user?.id)
+        .eq("id", user.id)
         .single();
       
       if (error) {
         if (error.code === 'PGRST116') {
-          // No settings found, create default settings
+          // No settings found, need to create default settings
           await createDefaultSettings();
-          return;
+          return null;
         }
         throw error;
       }
       
-      setSettings(data);
-      setEmailNotifications(data.email_notifications ?? true);
-      setTheme(data.theme ?? "light");
-      setReminderAdvanceNotice(data.reminder_advance_notice ?? 24);
-      setTimezone(data.timezone ?? "UTC");
-    } catch (error: any) {
+      return data as UserSettings;
+    },
+    enabled: !!user,
+    onSuccess: (data) => {
+      if (data) {
+        setEmailNotifications(data.email_notifications ?? true);
+        setTheme(data.theme ?? "light");
+        setReminderAdvanceNotice(data.reminder_advance_notice ?? 24);
+        setTimezone(data.timezone ?? "UTC");
+      }
+    },
+    onError: (error) => {
       console.error("Error fetching settings:", error);
       toast.error("Failed to load settings");
     }
-  };
+  });
 
+  // Create default settings
   const createDefaultSettings = async () => {
     if (!user) return;
     
@@ -110,19 +111,19 @@ const SettingsPage = () => {
       
       if (error) throw error;
       
-      // After creating, fetch the settings
-      fetchSettings();
-    } catch (error: any) {
+      // Refetch settings
+      queryClient.invalidateQueries({ queryKey: ["userSettings"] });
+    } catch (error) {
       console.error("Error creating settings:", error);
       toast.error("Failed to create settings");
     }
   };
 
-  const saveSettings = async () => {
-    if (!user) return;
-    
-    setIsSaving(true);
-    try {
+  // Save settings mutation
+  const saveSettingsMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("User not authenticated");
+      
       const { error } = await supabase
         .from("user_settings")
         .update({
@@ -136,21 +137,45 @@ const SettingsPage = () => {
       
       if (error) throw error;
       
+      return {
+        email_notifications: emailNotifications,
+        theme,
+        reminder_advance_notice: reminderAdvanceNotice,
+        timezone
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userSettings"] });
       toast.success("Settings saved successfully");
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       console.error("Error saving settings:", error);
       toast.error("Failed to save settings");
-    } finally {
-      setIsSaving(false);
     }
+  });
+
+  const handleSaveSettings = () => {
+    saveSettingsMutation.mutate();
   };
 
-  if (isLoading) {
+  useEffect(() => {
+    if (authLoading) return;
+    
+    if (!user) {
+      navigate("/auth");
+    }
+  }, [navigate, user, authLoading]);
+
+  if (authLoading || settingsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-lg">Loading...</p>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (
@@ -161,7 +186,7 @@ const SettingsPage = () => {
         </div>
       )}
       <div className="flex-1">
-        <Header userEmail={user?.email || ""} />
+        <Header userEmail={user.email || ""} />
         <div className="container py-6">
           <div className="mb-6">
             <h1 className="text-2xl font-semibold">Settings</h1>
@@ -269,9 +294,22 @@ const SettingsPage = () => {
               </CardContent>
             </Card>
             
-            <Button onClick={saveSettings} disabled={isSaving} className="w-full max-w-xs ml-auto">
-              <Save className="mr-2 h-4 w-4" />
-              {isSaving ? "Saving..." : "Save Settings"}
+            <Button 
+              onClick={handleSaveSettings} 
+              disabled={saveSettingsMutation.isPending} 
+              className="w-full max-w-xs ml-auto"
+            >
+              {saveSettingsMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Settings
+                </>
+              )}
             </Button>
           </div>
         </div>

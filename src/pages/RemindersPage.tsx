@@ -47,6 +47,7 @@ const RemindersPage = () => {
       const { data, error } = await supabase
         .from("contacts")
         .select("*")
+        .eq("user_id", user.id)
         .order("name");
       
       if (error) {
@@ -75,6 +76,7 @@ const RemindersPage = () => {
       const { data, error } = await supabase
         .from("reminders")
         .select("*")
+        .eq("user_id", user.id)
         .order("date");
       
       if (error) {
@@ -103,7 +105,7 @@ const RemindersPage = () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success("Reminder updated");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Error updating reminder:", error);
       toast.error("Failed to update reminder");
     },
@@ -124,7 +126,7 @@ const RemindersPage = () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success("Reminder deleted");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Error deleting reminder:", error);
       toast.error("Failed to delete reminder");
     },
@@ -140,7 +142,7 @@ const RemindersPage = () => {
       
       if (error) throw error;
       
-      const processed = data.results?.filter(r => r.status === 'success').length || 0;
+      const processed = data?.results?.filter((r: any) => r.status === 'success').length || 0;
       
       if (processed > 0) {
         toast.success(`Sent ${processed} reminder notification(s)`);
@@ -148,7 +150,7 @@ const RemindersPage = () => {
         toast.info("No upcoming reminders to send notifications for");
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error checking reminders:", error);
       toast.error("Failed to check reminders");
     } finally {
@@ -269,7 +271,7 @@ const RemindersPage = () => {
         </div>
       )}
       <div className="flex-1">
-        <Header userEmail={user.email} />
+        <Header userEmail={user.email || ""} />
         <div className="container py-6">
           <div className="mb-6 flex justify-between items-center">
             <div>

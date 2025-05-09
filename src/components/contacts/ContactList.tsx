@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,74 +8,285 @@ import AddContactDialog from "./AddContactDialog";
 import { Search, Plus } from "lucide-react";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-
-// Sample data for demonstration
-const SAMPLE_CONTACTS: ContactType[] = [
-  {
-    id: "1",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    phone: "+1 (555) 123-4567",
-    lastContacted: "3 days ago",
-    groups: ["Friends", "Work"],
-  },
-  {
-    id: "2",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+1 (555) 987-6543",
-    lastContacted: "1 week ago",
-    groups: ["Family"],
-  },
-  {
-    id: "3",
-    name: "Alex Johnson",
-    email: "alex@example.com",
-    phone: "+1 (555) 555-5555",
-    lastContacted: "2 weeks ago",
-    groups: ["Friends"],
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const ContactList = () => {
-  const [contacts, setContacts] = useState<ContactType[]>(SAMPLE_CONTACTS);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGroup, setFilterGroup] = useState<string>("all");
   const [editingContact, setEditingContact] = useState<ContactType | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   
-  const allGroups = Array.from(
-    new Set(contacts.flatMap((contact) => contact.groups || []))
-  );
+  // Fetch contacts from Supabase
+  const { data: contacts = [], isLoading } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*, contact_groups(group_id), groups(id, name)")
+        .eq("user_id", user.id);
+      
+      if (error) {
+        console.error("Error fetching contacts:", error);
+        toast.error("Failed to load contacts");
+        return [];
+      }
+      
+      // Process the contacts to extract groups
+      return data.map((contact) => {
+        const contactGroups = contact.groups
+          ? Array.isArray(contact.groups)
+            ? contact.groups.map((group: any) => group.name)
+            : []
+          : [];
+          
+        return {
+          id: contact.id,
+          name: contact.name,
+          email: contact.email || "",
+          phone: contact.phone || "",
+          lastContacted: contact.last_contacted 
+            ? new Date(contact.last_contacted).toLocaleDateString() 
+            : undefined,
+          groups: contactGroups
+        };
+      });
+    },
+    enabled: !!user,
+  });
 
+  // Fetch groups from Supabase
+  const { data: allGroups = [] } = useQuery({
+    queryKey: ["groups"],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from("groups")
+        .select("*")
+        .eq("user_id", user.id);
+      
+      if (error) {
+        console.error("Error fetching groups:", error);
+        toast.error("Failed to load groups");
+        return [];
+      }
+      
+      return data.map(group => group.name);
+    },
+    enabled: !!user,
+  });
+  
+  // Add contact mutation
+  const addContactMutation = useMutation({
+    mutationFn: async (newContact: Omit<ContactType, "id">) => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .insert({
+          name: newContact.name,
+          email: newContact.email,
+          phone: newContact.phone,
+          user_id: user!.id,
+          last_contacted: newContact.lastContacted ? new Date(newContact.lastContacted).toISOString() : null
+        })
+        .select("*")
+        .single();
+      
+      if (error) throw error;
+      
+      // If there are groups, create the associations
+      if (newContact.groups && newContact.groups.length > 0) {
+        // First get or create the groups
+        for (const groupName of newContact.groups) {
+          // Check if group exists
+          let groupId;
+          const { data: existingGroups } = await supabase
+            .from("groups")
+            .select("id")
+            .eq("name", groupName)
+            .eq("user_id", user!.id);
+          
+          if (existingGroups && existingGroups.length > 0) {
+            groupId = existingGroups[0].id;
+          } else {
+            // Create new group
+            const { data: newGroup, error: groupError } = await supabase
+              .from("groups")
+              .insert({ name: groupName, user_id: user!.id })
+              .select("*")
+              .single();
+            
+            if (groupError) throw groupError;
+            
+            groupId = newGroup.id;
+          }
+          
+          // Create contact-group association
+          const { error: assocError } = await supabase
+            .from("contact_groups")
+            .insert({
+              contact_id: data.id,
+              group_id: groupId
+            });
+          
+          if (assocError) throw assocError;
+        }
+      }
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
+      setIsDialogOpen(false);
+      toast.success("Contact added successfully");
+    },
+    onError: (error: any) => {
+      console.error("Error adding contact:", error);
+      toast.error(error.message || "Failed to add contact");
+    }
+  });
+  
+  // Edit contact mutation
+  const editContactMutation = useMutation({
+    mutationFn: async (updatedContact: ContactType) => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .update({
+          name: updatedContact.name,
+          email: updatedContact.email,
+          phone: updatedContact.phone,
+          last_contacted: updatedContact.lastContacted ? new Date(updatedContact.lastContacted).toISOString() : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", updatedContact.id)
+        .select("*")
+        .single();
+      
+      if (error) throw error;
+      
+      // Handle groups update - this requires removing existing associations and adding new ones
+      // First, get existing group associations
+      const { data: existingAssociations, error: fetchError } = await supabase
+        .from("contact_groups")
+        .select("*")
+        .eq("contact_id", updatedContact.id);
+        
+      if (fetchError) throw fetchError;
+      
+      // Remove existing associations
+      if (existingAssociations.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("contact_groups")
+          .delete()
+          .eq("contact_id", updatedContact.id);
+          
+        if (deleteError) throw deleteError;
+      }
+      
+      // Add new associations if there are groups
+      if (updatedContact.groups && updatedContact.groups.length > 0) {
+        for (const groupName of updatedContact.groups) {
+          // Check if group exists
+          let groupId;
+          const { data: existingGroups } = await supabase
+            .from("groups")
+            .select("id")
+            .eq("name", groupName)
+            .eq("user_id", user!.id);
+          
+          if (existingGroups && existingGroups.length > 0) {
+            groupId = existingGroups[0].id;
+          } else {
+            // Create new group
+            const { data: newGroup, error: groupError } = await supabase
+              .from("groups")
+              .insert({ name: groupName, user_id: user!.id })
+              .select("*")
+              .single();
+            
+            if (groupError) throw groupError;
+            
+            groupId = newGroup.id;
+          }
+          
+          // Create contact-group association
+          const { error: assocError } = await supabase
+            .from("contact_groups")
+            .insert({
+              contact_id: updatedContact.id,
+              group_id: groupId
+            });
+          
+          if (assocError) throw assocError;
+        }
+      }
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
+      setEditingContact(null);
+      setIsDialogOpen(false);
+      toast.success("Contact updated successfully");
+    },
+    onError: (error: any) => {
+      console.error("Error updating contact:", error);
+      toast.error(error.message || "Failed to update contact");
+    }
+  });
+  
+  // Delete contact mutation
+  const deleteContactMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("contacts")
+        .delete()
+        .eq("id", id);
+        
+      if (error) throw error;
+      
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast.success("Contact deleted");
+    },
+    onError: (error: any) => {
+      console.error("Error deleting contact:", error);
+      toast.error(error.message || "Failed to delete contact");
+    }
+  });
+
+  // Filter contacts based on search term and selected group
   const filteredContacts = contacts.filter((contact) => {
     const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          contact.email.toLowerCase().includes(searchTerm.toLowerCase());
+                         (contact.email && contact.email.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesGroup = filterGroup === "all" || 
-                          contact.groups?.includes(filterGroup);
+                         (contact.groups && contact.groups.includes(filterGroup));
     
     return matchesSearch && matchesGroup;
   });
 
-  const handleAddContact = (newContact: ContactType) => {
-    setContacts([...contacts, { ...newContact, id: Date.now().toString() }]);
-    setIsDialogOpen(false);
-    toast.success(`${newContact.name} added to contacts`);
+  const handleAddContact = (newContact: Omit<ContactType, "id">) => {
+    addContactMutation.mutate(newContact);
   };
 
   const handleEditContact = (updatedContact: ContactType) => {
-    setContacts(contacts.map(contact => 
-      contact.id === updatedContact.id ? updatedContact : contact
-    ));
-    setEditingContact(null);
-    setIsDialogOpen(false);
-    toast.success(`${updatedContact.name} updated`);
+    editContactMutation.mutate(updatedContact);
   };
 
   const handleDeleteContact = (id: string) => {
-    const contactToDelete = contacts.find(contact => contact.id === id);
-    setContacts(contacts.filter(contact => contact.id !== id));
-    toast.success(`${contactToDelete?.name || 'Contact'} deleted`);
+    const confirmDelete = window.confirm("Are you sure you want to delete this contact?");
+    if (confirmDelete) {
+      deleteContactMutation.mutate(id);
+    }
   };
 
   const handleAddReminder = (contact: ContactType) => {
@@ -87,6 +298,14 @@ const ContactList = () => {
     toast.info(`Add conversation with ${contact.name}`);
     // In a real app, this would open a conversation form
   };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-muted-foreground">Loading contacts...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -111,7 +330,7 @@ const ContactList = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Groups</SelectItem>
-              {allGroups.map((group) => (
+              {allGroups.map((group: string) => (
                 <SelectItem key={group} value={group}>
                   {group}
                 </SelectItem>
