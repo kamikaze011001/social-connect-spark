@@ -54,6 +54,7 @@ export type Database = {
           last_contacted: string | null
           name: string
           phone: string | null
+          social_links: Json | null
           updated_at: string
           user_id: string
         }
@@ -65,6 +66,7 @@ export type Database = {
           last_contacted?: string | null
           name: string
           phone?: string | null
+          social_links?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -76,6 +78,7 @@ export type Database = {
           last_contacted?: string | null
           name?: string
           phone?: string | null
+          social_links?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -263,6 +266,8 @@ export type Database = {
           description: string | null
           id: string
           type: string
+          updated_at: string
+          user_id: string | null
         }
         Insert: {
           contact_id: string
@@ -271,6 +276,8 @@ export type Database = {
           description?: string | null
           id?: string
           type: string
+          updated_at?: string
+          user_id?: string | null
         }
         Update: {
           contact_id?: string
@@ -279,6 +286,8 @@ export type Database = {
           description?: string | null
           id?: string
           type?: string
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {

@@ -21,6 +21,14 @@ interface SupabaseError {
   message: string;
 }
 
+interface FetchedSpecialDate { // Define a more specific type for fetched special dates
+  id: string;
+  type: string;
+  date: string;
+  description?: string;
+  // Add other fields like contact_id, user_id, created_at, updated_at if you intend to use them directly
+}
+
 const ContactList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGroup, setFilterGroup] = useState<string>("all");
@@ -37,7 +45,7 @@ const ContactList = () => {
       
       const { data, error } = await supabase
         .from("contacts")
-        .select("*, contact_groups!inner(groups(id, name))")
+        .select("*, social_links, contact_groups!inner(groups(id, name)), special_dates(*)")
         .eq("user_id", user.id);
       
       if (error) {
@@ -57,14 +65,41 @@ const ContactList = () => {
         return {
           id: contact.id,
           name: contact.name,
-          email: contact.email || "",
+          email: contact.email || undefined, // Changed from "" to undefined
           phone: contact.phone || "",
           lastContacted: contact.last_contacted 
             ? new Date(contact.last_contacted).toLocaleDateString() 
             : undefined,
-          groups: contactGroups
+          groups: contactGroups,
+          socialLinks: (() => {
+            const rawSocialLinks = contact.social_links;
+            let processedSocialLinks: ContactType['socialLinks'] | undefined = undefined;
+
+            if (rawSocialLinks) {
+              if (typeof rawSocialLinks === 'string') {
+                try {
+                  processedSocialLinks = JSON.parse(rawSocialLinks) as ContactType['socialLinks'];
+                } catch (error) {
+                  console.error("Error parsing social_links JSON string:", error, rawSocialLinks);
+                }
+              } else if (typeof rawSocialLinks === 'object' && rawSocialLinks !== null) {
+                processedSocialLinks = rawSocialLinks as ContactType['socialLinks'];
+              } else {
+                console.warn("Unexpected type for social_links:", typeof rawSocialLinks, rawSocialLinks);
+              }
+            }
+            return processedSocialLinks;
+          })(),
+          specialDates: contact.special_dates 
+            ? contact.special_dates.map((sd: FetchedSpecialDate) => ({ 
+                id: sd.id, // Keep id if needed for UI keys or future updates
+                type: sd.type, 
+                date: sd.date, 
+                description: sd.description 
+              })) 
+            : []
         };
-      });
+      })
     },
     enabled: !!user,
   });
@@ -101,12 +136,15 @@ const ContactList = () => {
           email: newContact.email,
           phone: newContact.phone,
           user_id: user!.id,
-          last_contacted: newContact.lastContacted ? new Date(newContact.lastContacted).toISOString() : null
+          last_contacted: newContact.lastContacted ? new Date(newContact.lastContacted).toISOString() : null,
+          social_links: newContact.socialLinks 
         })
         .select("*")
         .single();
       
       if (error) throw error;
+
+      const contactId = data.id; // Get the id of the newly created contact
       
       // If there are groups, create the associations
       if (newContact.groups && newContact.groups.length > 0) {
@@ -138,11 +176,30 @@ const ContactList = () => {
           const { error: assocError } = await supabase
             .from("contact_groups")
             .insert({
-              contact_id: data.id,
+              contact_id: contactId,
               group_id: groupId
             });
           
           if (assocError) throw assocError;
+        }
+      }
+
+      // If there are special dates, create them
+      if (newContact.specialDates && newContact.specialDates.length > 0) {
+        const specialDatesToInsert = newContact.specialDates.map(sd => ({
+          contact_id: contactId,
+          user_id: user!.id,
+          type: sd.type,
+          date: sd.date,
+          description: sd.description
+        }));
+        const { error: specialDatesError } = await supabase
+          .from("special_dates")
+          .insert(specialDatesToInsert);;
+        if (specialDatesError) {
+          console.error("Detailed error inserting special dates (add):", JSON.stringify(specialDatesError, null, 2));
+          toast.error(`Failed to save special dates: ${specialDatesError.message}`);
+          throw specialDatesError; // Still throw to trigger mutation's onError
         }
       }
       
@@ -170,6 +227,7 @@ const ContactList = () => {
           email: updatedContact.email,
           phone: updatedContact.phone,
           last_contacted: updatedContact.lastContacted ? new Date(updatedContact.lastContacted).toISOString() : null,
+          social_links: updatedContact.socialLinks,
           updated_at: new Date().toISOString()
         })
         .eq("id", updatedContact.id)
@@ -180,24 +238,24 @@ const ContactList = () => {
       
       // Handle groups update - this requires removing existing associations and adding new ones
       // First, get existing group associations
-      const { data: existingAssociations, error: fetchError } = await supabase
+      const { data: existingGroupAssociations, error: fetchGroupError } = await supabase
         .from("contact_groups")
-        .select("*")
+        .select("id") // Only need id for deletion
         .eq("contact_id", updatedContact.id);
         
-      if (fetchError) throw fetchError;
+      if (fetchGroupError) throw fetchGroupError;
       
-      // Remove existing associations
-      if (existingAssociations.length > 0) {
-        const { error: deleteError } = await supabase
+      // Remove existing group associations
+      if (existingGroupAssociations.length > 0) {
+        const { error: deleteGroupError } = await supabase
           .from("contact_groups")
           .delete()
           .eq("contact_id", updatedContact.id);
           
-        if (deleteError) throw deleteError;
+        if (deleteGroupError) throw deleteGroupError;
       }
       
-      // Add new associations if there are groups
+      // Add new group associations if there are groups
       if (updatedContact.groups && updatedContact.groups.length > 0) {
         for (const groupName of updatedContact.groups) {
           // Check if group exists
@@ -224,14 +282,42 @@ const ContactList = () => {
           }
           
           // Create contact-group association
-          const { error: assocError } = await supabase
+          const { error: groupAssocError } = await supabase
             .from("contact_groups")
             .insert({
               contact_id: updatedContact.id,
               group_id: groupId
             });
           
-          if (assocError) throw assocError;
+          if (groupAssocError) throw groupAssocError;
+        }
+      }
+
+      // Handle special dates update - remove existing and add new ones
+      const { error: deleteSpecialDatesError } = await supabase
+        .from("special_dates")
+        .delete()
+        .eq("contact_id", updatedContact.id);
+
+      if (deleteSpecialDatesError) throw deleteSpecialDatesError;
+
+      if (updatedContact.specialDates && updatedContact.specialDates.length > 0) {
+        const specialDatesToInsert = updatedContact.specialDates.map(sd => ({
+          contact_id: updatedContact.id,
+          user_id: user!.id,
+          type: sd.type,
+          date: sd.date,
+          description: sd.description
+        }));
+        console.log("Inserting special dates:", specialDatesToInsert);
+        const { error: insertSpecialDatesError } = await supabase
+          .from("special_dates")
+          .insert(specialDatesToInsert);
+        
+        if (insertSpecialDatesError) {
+          console.error("Detailed error inserting special dates (edit):", JSON.stringify(insertSpecialDatesError, null, 2));
+          toast.error(`Failed to save special dates: ${insertSpecialDatesError.message}`);
+          throw insertSpecialDatesError; // Still throw to trigger mutation's onError
         }
       }
       
@@ -287,6 +373,7 @@ const ContactList = () => {
   };
 
   const handleEditContact = (updatedContact: ContactType) => {
+    console.log("handleEditContact called with:", JSON.stringify(updatedContact, null, 2));
     editContactMutation.mutate(updatedContact);
   };
 

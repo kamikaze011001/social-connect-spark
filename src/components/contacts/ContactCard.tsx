@@ -4,15 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
-  User, Phone, Mail, Calendar, MoreVertical, MessageSquare, 
+  Phone, Mail, Calendar, MoreVertical, MessageSquare, 
   Edit, Trash, Clock, Linkedin, Twitter, Instagram, Facebook
 } from "lucide-react";
 
 export interface ContactType {
   id: string;
   name: string;
-  email: string;
+  email?: string; // Changed to optional
   phone?: string;
   lastContacted?: string;
   imageUrl?: string;
@@ -24,6 +25,7 @@ export interface ContactType {
     facebook?: string;
   };
   specialDates?: {
+    id?: string; // Added id, now optional for backend compatibility
     type: string;
     date: string;
     description?: string;
@@ -65,6 +67,18 @@ const ContactCard = ({
         return <Facebook className="h-4 w-4" />;
       default:
         return null;
+    }
+  };
+
+  const getUsernameFromUrl = (url: string) => {
+    try {
+      const pathParts = new URL(url).pathname.split('/').filter(part => part.length > 0);
+      return pathParts.pop() || ''; // Get the last part of the path
+    } catch (error) {
+      console.error("Error parsing URL:", error);
+      // Fallback for non-standard URLs or if URL parsing fails
+      const parts = url.split('/');
+      return parts.pop() || '';
     }
   };
 
@@ -122,41 +136,59 @@ const ContactCard = ({
       </CardHeader>
       <CardContent className="pb-2">
         <div className="space-y-2 text-sm">
-          <div className="flex items-center text-muted-foreground">
-            <Mail className="h-4 w-4 mr-2" />
-            <span>{contact.email}</span>
-          </div>
+          {contact.email && (
+            <div className="flex items-center text-muted-foreground">
+              <Mail className="h-4 w-4 mr-2" />
+              <span>{contact.email}</span>
+            </div>
+          )}
           {contact.phone && (
             <div className="flex items-center text-muted-foreground">
               <Phone className="h-4 w-4 mr-2" />
               <span>{contact.phone}</span>
             </div>
           )}
+          {!contact.email && !contact.phone && (
+            <p className="text-xs text-muted-foreground italic">No primary contact information.</p>
+          )}
+
           {contact.lastContacted && (
             <div className="flex items-center text-muted-foreground">
               <Clock className="h-4 w-4 mr-2" />
               <span>Last contacted {contact.lastContacted}</span>
             </div>
           )}
+
           {contact.socialLinks && Object.entries(contact.socialLinks).length > 0 && (
             <div className="flex items-center space-x-2 mt-2">
               {Object.entries(contact.socialLinks).map(([platform, url]) => url && (
-                <a 
-                  key={platform} 
-                  href={url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                >
-                  {getSocialIcon(platform)}
-                </a>
+                <TooltipProvider key={platform}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <a 
+                        href={url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        aria-label={`View ${contact.name}'s ${platform} profile`}
+                        className="text-muted-foreground hover:text-primary transition-colors flex items-center space-x-1"
+                      >
+                        {getSocialIcon(platform)}
+                        <span className="text-xs">{getUsernameFromUrl(url)}</span>
+                      </a>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{platform.charAt(0).toUpperCase() + platform.slice(1)}: {getUsernameFromUrl(url)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ))}
             </div>
           )}
+
           {contact.specialDates && contact.specialDates.length > 0 && (
             <div className="mt-2">
-              {contact.specialDates.map((specialDate, index) => (
-                <div key={index} className="flex items-center text-muted-foreground mt-1">
+              {contact.specialDates.map((specialDate) => (
+                <div key={specialDate.id} className="flex items-center text-muted-foreground mt-1">
                   <Calendar className="h-4 w-4 mr-2 text-primary" />
                   <span>{specialDate.type}: {new Date(specialDate.date).toLocaleDateString()}</span>
                 </div>

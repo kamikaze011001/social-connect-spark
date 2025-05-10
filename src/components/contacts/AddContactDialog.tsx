@@ -33,7 +33,7 @@ const AddContactDialog = ({
     instagram: "",
     facebook: ""
   });
-  const [specialDates, setSpecialDates] = useState<Array<{type: string, date: string, description?: string}>>([]);
+  const [specialDates, setSpecialDates] = useState<Array<{id: string, type: string, date: string, description?: string}>>([]);
   const [specialDateInput, setSpecialDateInput] = useState({
     type: "birthday",
     date: "",
@@ -43,7 +43,7 @@ const AddContactDialog = ({
   useEffect(() => {
     if (existingContact) {
       setName(existingContact.name);
-      setEmail(existingContact.email);
+      setEmail(existingContact.email || ""); // Ensure email is an empty string if undefined/null
       setPhone(existingContact.phone || "");
       setGroups(existingContact.groups || []);
       setSocialLinks({
@@ -52,7 +52,12 @@ const AddContactDialog = ({
         instagram: existingContact.socialLinks?.instagram || "",
         facebook: existingContact.socialLinks?.facebook || ""
       });
-      setSpecialDates(existingContact.specialDates || []);
+      setSpecialDates(
+        (existingContact.specialDates || []).map(sd => ({
+          ...sd,
+          id: sd.id || crypto.randomUUID() // Ensure id exists for local state
+        }))
+      );
     } else {
       // Reset all form fields when there's no existing contact
       setName("");
@@ -87,19 +92,19 @@ const AddContactDialog = ({
     }
 
     // Check if at least one other field is filled
-    const hasEmail = email.trim().length > 0;
-    const hasPhone = phone.trim().length > 0;
-    const hasSocialLinks = Object.values(socialLinks).some(link => link.trim().length > 0);
-    const hasSpecialDates = specialDates.length > 0;
+    const isEmailFilled = email.trim().length > 0;
+    const isPhoneFilled = phone.trim().length > 0;
+    const areSocialLinksFilled = Object.values(socialLinks).some(link => link.trim().length > 0);
+    const areSpecialDatesFilled = specialDates.length > 0;
 
-    if (!hasEmail && !hasPhone && !hasSocialLinks && !hasSpecialDates) {
+    if (!isEmailFilled && !isPhoneFilled && !areSocialLinksFilled && !areSpecialDatesFilled) {
       newErrors.email = "At least one other field must be filled (email, phone, social links, or special dates)";
       valid = false;
     }
 
-    // Only validate email format if email is provided
-    if (hasEmail && !/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Email is invalid";
+    // Only validate email format if email is provided and filled
+    if (isEmailFilled && !/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = "Email is invalid"; // This might overwrite the "at least one other field" error if email is the only one filled and invalid
       valid = false;
     }
 
@@ -109,8 +114,10 @@ const AddContactDialog = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) return;
+    console.log("Validating form...");
+    const isValid = validateForm();
+    console.log("Form validation result:", isValid);
+    if (!isValid) return;
 
     const contactData: ContactType = {
       id: existingContact?.id || "",
@@ -126,8 +133,12 @@ const AddContactDialog = ({
         instagram: socialLinks.instagram || undefined,
         facebook: socialLinks.facebook || undefined
       },
-      specialDates: specialDates.length > 0 ? specialDates : undefined
+      specialDates: specialDates.length > 0
+        ? specialDates.map(({ id, ...rest }) => rest) // Remove id before sending
+        : undefined
     };
+
+    console.log("Contact data to be sent to onEdit/onSave:", JSON.stringify(contactData, null, 2));
 
     if (existingContact) {
       onEdit(contactData);
@@ -177,7 +188,8 @@ const AddContactDialog = ({
 
   const handleAddSpecialDate = () => {
     if (specialDateInput.date) {
-      setSpecialDates([...specialDates, { 
+      setSpecialDates([...specialDates, {
+        id: crypto.randomUUID(), 
         type: specialDateInput.type,
         date: specialDateInput.date,
         description: specialDateInput.description || undefined
@@ -190,10 +202,8 @@ const AddContactDialog = ({
     }
   };
 
-  const handleRemoveSpecialDate = (index: number) => {
-    const newDates = [...specialDates];
-    newDates.splice(index, 1);
-    setSpecialDates(newDates);
+  const handleRemoveSpecialDate = (idToRemove: string) => {
+    setSpecialDates(specialDates.filter(sd => sd.id !== idToRemove));
   };
 
   const handleSocialLinkChange = (platform: keyof typeof socialLinks, value: string) => {
@@ -204,7 +214,7 @@ const AddContactDialog = ({
   };
 
   return (
-    <DialogContent className="sm:max-w-md">
+    <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{existingContact ? "Edit Contact" : "Add New Contact"}</DialogTitle>
       </DialogHeader>
@@ -310,10 +320,10 @@ const AddContactDialog = ({
             <AccordionTrigger>Special Dates</AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4">
-                {specialDates.map((date, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border rounded-md">
+                {specialDates.map((date) => (
+                  <div key={date.id} className="flex items-center justify-between p-2 border rounded-md bg-muted/50 dark:bg-muted/20">
                     <div>
-                      <p className="font-medium">{date.type}</p>
+                      <p className="font-medium">{date.type.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
                       <p className="text-sm text-muted-foreground">{new Date(date.date).toLocaleDateString()}</p>
                       {date.description && <p className="text-xs italic">{date.description}</p>}
                     </div>
@@ -321,7 +331,7 @@ const AddContactDialog = ({
                       type="button"
                       variant="ghost" 
                       size="icon"
-                      onClick={() => handleRemoveSpecialDate(index)}
+                      onClick={() => handleRemoveSpecialDate(date.id)}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -402,6 +412,7 @@ const AddContactDialog = ({
             onKeyDown={handleAddGroup}
             placeholder="Add a group (press Enter)"
           />
+          <p className="text-xs text-muted-foreground mt-1">Press Enter after typing to add a group.</p>
           {errors.groups && (
             <p className="text-destructive text-sm">{errors.groups}</p>
           )}

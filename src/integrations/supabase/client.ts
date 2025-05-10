@@ -2,10 +2,18 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://tcbmqlkejoejfrouoqfv.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjYm1xbGtlam9lamZyb3VvcWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1OTE5MDMsImV4cCI6MjA2MjE2NzkwM30.jZUyt7SnShGDWGj-KjOgrSQc23Wcrddrh7g-SGw2Zy8";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL) {
+  throw new Error("VITE_SUPABASE_URL is not set. Please check your .env.local file.");
+}
+
+if (!SUPABASE_ANON_KEY) {
+  throw new Error("VITE_SUPABASE_ANON_KEY is not set. Please check your .env.local file.");
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
