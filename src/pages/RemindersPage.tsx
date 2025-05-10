@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
@@ -18,6 +17,12 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Define Reminder type
 interface Reminder {
@@ -222,11 +227,25 @@ const RemindersPage = () => {
                 <h3 className="font-medium">{contact.name}</h3>
                 <p className="text-sm text-muted-foreground">{reminder.purpose}</p>
                 <div className="flex items-center mt-2 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3 mr-1" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Calendar className="h-3 w-3 mr-1" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Reminder Date</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <span>{formatDate(reminder.date)}</span>
                   {reminder.time && (
                     <>
-                      <Clock className="h-3 w-3 ml-3 mr-1" />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Clock className="h-3 w-3 ml-3 mr-1" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Reminder Time</p>
+                        </TooltipContent>
+                      </Tooltip>
                       <span>{reminder.time}</span>
                     </>
                   )}
@@ -235,27 +254,55 @@ const RemindersPage = () => {
             </div>
             <div className="flex items-center space-x-2">
               {reminder.is_recurring && (
-                <Badge variant="outline">
-                  {reminder.frequency?.charAt(0).toUpperCase() + reminder.frequency?.slice(1)}
-                </Badge>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline">
+                      {reminder.frequency?.charAt(0).toUpperCase() + reminder.frequency?.slice(1)}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Recurring Reminder</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => toggleReminderCompletion(reminder)}
-              >
-                <CheckCircle className={`h-5 w-5 ${reminder.is_completed ? 'text-green-500' : 'text-gray-300'}`} />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => deleteReminder(reminder.id)}
-              >
-                <Trash className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => toggleReminderCompletion(reminder)}
+                  >
+                    <CheckCircle className={`h-5 w-5 ${reminder.is_completed ? 'text-green-500' : 'text-gray-300'}`} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{reminder.is_completed ? 'Mark as Incomplete' : 'Mark as Complete'}</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit Reminder</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => deleteReminder(reminder.id)}
+                  >
+                    <Trash className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete Reminder</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </CardContent>
@@ -264,41 +311,49 @@ const RemindersPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      {!isMobile && (
-        <div className="w-64 hidden md:block">
-          <Sidebar />
-        </div>
-      )}
-      <div className="flex-1">
-        <Header userEmail={user.email || ""} />
-        <div className="container py-6">
-          <div className="mb-6 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-semibold">Reminders</h1>
-              <p className="text-muted-foreground">
-                Never forget to stay in touch with your contacts
-              </p>
-            </div>
-            <Button 
-              variant="outline" 
-              className="gap-2" 
-              onClick={checkUpcomingReminders} 
-              disabled={checkingReminders}
-            >
-              {checkingReminders ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Checking...
-                </>
-              ) : (
-                <>
-                  <Bell className="h-4 w-4" />
-                  Check Reminders
-                </>
-              )}
-            </Button>
+    <TooltipProvider>
+      <div className="flex min-h-screen">
+        {!isMobile && (
+          <div className="w-64 hidden md:block">
+            <Sidebar />
           </div>
+        )}
+        <div className="flex-1">
+          <Header userEmail={user.email || ""} />
+          <div className="container py-6">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-semibold">Reminders</h1>
+                <p className="text-muted-foreground">
+                  Never forget to stay in touch with your contacts
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="gap-2" 
+                    onClick={checkUpcomingReminders} 
+                    disabled={checkingReminders}
+                  >
+                    {checkingReminders ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <Bell className="h-4 w-4" />
+                        Check Reminders
+                      </>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Check for upcoming reminders and send notifications</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
@@ -308,57 +363,58 @@ const RemindersPage = () => {
                   <TabsTrigger value="completed">Completed</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="upcoming" className="animate-in">
-                  {upcomingReminders.length === 0 ? (
-                    <div className="text-center py-10">
-                      <p className="text-muted-foreground">No upcoming reminders</p>
-                      <Button className="mt-4" onClick={() => setActiveTab("new")}>
-                        Create a reminder
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <Alert className="mb-4 bg-muted/50">
-                        <Bell className="h-4 w-4" />
-                        <AlertDescription>
-                          Email notifications for upcoming reminders are sent automatically one day before the reminder date.
-                        </AlertDescription>
-                      </Alert>
-                      {upcomingReminders.map(reminder => (
+                  <TabsContent value="upcoming" className="animate-in">
+                    {upcomingReminders.length === 0 ? (
+                      <div className="text-center py-10">
+                        <p className="text-muted-foreground">No upcoming reminders</p>
+                        <Button className="mt-4" onClick={() => setActiveTab("new")}>
+                          Create a reminder
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Alert className="mb-4 bg-muted/50">
+                          <Bell className="h-4 w-4" />
+                          <AlertDescription>
+                            Email notifications for upcoming reminders are sent automatically one day before the reminder date.
+                          </AlertDescription>
+                        </Alert>
+                        {upcomingReminders.map(reminder => (
+                          <ReminderCard key={reminder.id} reminder={reminder} />
+                        ))}
+                      </>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="completed" className="animate-in">
+                    {completedReminders.length === 0 ? (
+                      <div className="text-center py-10">
+                        <p className="text-muted-foreground">No completed reminders</p>
+                      </div>
+                    ) : (
+                      completedReminders.map(reminder => (
                         <ReminderCard key={reminder.id} reminder={reminder} />
-                      ))}
-                    </>
-                  )}
-                </TabsContent>
+                      ))
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
 
-                <TabsContent value="completed" className="animate-in">
-                  {completedReminders.length === 0 ? (
-                    <div className="text-center py-10">
-                      <p className="text-muted-foreground">No completed reminders</p>
-                    </div>
-                  ) : (
-                    completedReminders.map(reminder => (
-                      <ReminderCard key={reminder.id} reminder={reminder} />
-                    ))
-                  )}
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>New Reminder</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ReminderForm contacts={contacts} />
-                </CardContent>
-              </Card>
+              <div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>New Reminder</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ReminderForm contacts={contacts} />
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
 

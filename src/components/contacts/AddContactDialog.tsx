@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -27,7 +26,7 @@ const AddContactDialog = ({
   const [phone, setPhone] = useState("");
   const [groupInput, setGroupInput] = useState("");
   const [groups, setGroups] = useState<string[]>([]);
-  const [errors, setErrors] = useState({ name: "", email: "" });
+  const [errors, setErrors] = useState({ name: "", email: "", groups: "" });
   const [socialLinks, setSocialLinks] = useState({
     linkedin: "",
     twitter: "",
@@ -54,22 +53,52 @@ const AddContactDialog = ({
         facebook: existingContact.socialLinks?.facebook || ""
       });
       setSpecialDates(existingContact.specialDates || []);
+    } else {
+      // Reset all form fields when there's no existing contact
+      setName("");
+      setEmail("");
+      setPhone("");
+      setGroups([]);
+      setSocialLinks({
+        linkedin: "",
+        twitter: "",
+        instagram: "",
+        facebook: ""
+      });
+      setSpecialDates([]);
+      setErrors({ name: "", email: "", groups: "" });
     }
   }, [existingContact]);
 
   const validateForm = () => {
-    const newErrors = { name: "", email: "" };
+    const newErrors = { name: "", email: "", groups: "" };
     let valid = true;
 
+    // Name is required
     if (!name.trim()) {
       newErrors.name = "Name is required";
       valid = false;
     }
 
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
+    // Groups are required
+    if (groups.length === 0) {
+      newErrors.groups = "At least one group is required";
       valid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
+    }
+
+    // Check if at least one other field is filled
+    const hasEmail = email.trim().length > 0;
+    const hasPhone = phone.trim().length > 0;
+    const hasSocialLinks = Object.values(socialLinks).some(link => link.trim().length > 0);
+    const hasSpecialDates = specialDates.length > 0;
+
+    if (!hasEmail && !hasPhone && !hasSocialLinks && !hasSpecialDates) {
+      newErrors.email = "At least one other field must be filled (email, phone, social links, or special dates)";
+      valid = false;
+    }
+
+    // Only validate email format if email is provided
+    if (hasEmail && !/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = "Email is invalid";
       valid = false;
     }
@@ -106,7 +135,7 @@ const AddContactDialog = ({
       onSave(contactData);
     }
 
-    // Reset form
+    // Reset form only after successful submission
     if (!existingContact) {
       setName("");
       setEmail("");
@@ -119,6 +148,7 @@ const AddContactDialog = ({
         facebook: ""
       });
       setSpecialDates([]);
+      setErrors({ name: "", email: "", groups: "" });
     }
   };
 
@@ -180,7 +210,7 @@ const AddContactDialog = ({
       </DialogHeader>
       <form onSubmit={handleSubmit} className="space-y-4 py-2">
         <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
+          <Label htmlFor="name">Name *</Label>
           <Input
             id="name"
             value={name}
@@ -207,7 +237,7 @@ const AddContactDialog = ({
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="phone">Phone (optional)</Label>
+          <Label htmlFor="phone">Phone</Label>
           <Input
             id="phone"
             value={phone}
@@ -350,7 +380,7 @@ const AddContactDialog = ({
         </Accordion>
         
         <div className="space-y-2">
-          <Label htmlFor="groups">Groups</Label>
+          <Label htmlFor="groups">Groups *</Label>
           <div className="flex flex-wrap gap-1 mb-2">
             {groups.map((group) => (
               <Badge key={group} variant="secondary" className="text-sm py-1">
@@ -372,6 +402,9 @@ const AddContactDialog = ({
             onKeyDown={handleAddGroup}
             placeholder="Add a group (press Enter)"
           />
+          {errors.groups && (
+            <p className="text-destructive text-sm">{errors.groups}</p>
+          )}
           
           {existingGroups.length > 0 && groupInput === "" && groups.length === 0 && (
             <div className="mt-2">

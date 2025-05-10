@@ -1,6 +1,6 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "next-themes";
 import Header from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -44,10 +44,10 @@ const SettingsPage = () => {
   const isMobile = useIsMobile();
   const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
+  const { theme, setTheme: setNextTheme } = useTheme();
   
   // State for form fields
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [theme, setTheme] = useState("light");
   const [reminderAdvanceNotice, setReminderAdvanceNotice] = useState("24");
   const [timezone, setTimezone] = useState("UTC");
   
@@ -71,7 +71,7 @@ const SettingsPage = () => {
             .insert({
               id: user.id,
               email_notifications: true,
-              theme: "light",
+              theme: "system",
               reminder_advance_notice: 24,
               timezone: "UTC"
             })
@@ -93,11 +93,11 @@ const SettingsPage = () => {
   useEffect(() => {
     if (settings) {
       setEmailNotifications(settings.email_notifications);
-      setTheme(settings.theme);
+      setNextTheme(settings.theme);
       setReminderAdvanceNotice(settings.reminder_advance_notice.toString());
       setTimezone(settings.timezone);
     }
-  }, [settings]);
+  }, [settings, setNextTheme]);
   
   // Update settings mutation
   const updateSettingsMutation = useMutation({
@@ -189,56 +189,6 @@ const SettingsPage = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  Notification Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure how you receive notifications
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="email-notifications" className="flex-grow">
-                    Email Notifications
-                    <p className="text-sm font-normal text-muted-foreground">
-                      Receive emails for reminders and other important updates
-                    </p>
-                  </Label>
-                  <Switch
-                    id="email-notifications"
-                    checked={emailNotifications}
-                    onCheckedChange={setEmailNotifications}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="reminder-notice">Reminder Advance Notice</Label>
-                  <Select
-                    value={reminderAdvanceNotice}
-                    onValueChange={setReminderAdvanceNotice}
-                  >
-                    <SelectTrigger id="reminder-notice">
-                      <SelectValue placeholder="Select hours" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 hour before</SelectItem>
-                      <SelectItem value="3">3 hours before</SelectItem>
-                      <SelectItem value="12">12 hours before</SelectItem>
-                      <SelectItem value="24">24 hours before</SelectItem>
-                      <SelectItem value="48">48 hours before</SelectItem>
-                      <SelectItem value="72">72 hours before</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    How far in advance should we send reminder notifications
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
                   <Settings className="h-5 w-5" />
                   App Settings
                 </CardTitle>
@@ -249,7 +199,7 @@ const SettingsPage = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="theme">Theme</Label>
-                  <Select value={theme} onValueChange={setTheme}>
+                  <Select value={theme} onValueChange={setNextTheme}>
                     <SelectTrigger id="theme">
                       <SelectValue placeholder="Select theme" />
                     </SelectTrigger>
@@ -277,26 +227,50 @@ const SettingsPage = () => {
                   </Select>
                 </div>
 
-                <Alert variant="default" className="bg-muted/50 border-amber-300">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Some settings may require a page refresh to take effect.
-                  </AlertDescription>
-                </Alert>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="email-notifications">Email Notifications</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Receive email notifications for reminders
+                    </p>
+                  </div>
+                  <Switch
+                    id="email-notifications"
+                    checked={emailNotifications}
+                    onCheckedChange={setEmailNotifications}
+                  />
+                </div>
 
-                <Button 
-                  onClick={handleSaveSettings} 
-                  className="w-full"
+                <div className="space-y-2">
+                  <Label htmlFor="reminder-advance-notice">
+                    Reminder Advance Notice (hours)
+                  </Label>
+                  <Select
+                    value={reminderAdvanceNotice}
+                    onValueChange={setReminderAdvanceNotice}
+                  >
+                    <SelectTrigger id="reminder-advance-notice">
+                      <SelectValue placeholder="Select advance notice" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 hour</SelectItem>
+                      <SelectItem value="3">3 hours</SelectItem>
+                      <SelectItem value="6">6 hours</SelectItem>
+                      <SelectItem value="12">12 hours</SelectItem>
+                      <SelectItem value="24">24 hours</SelectItem>
+                      <SelectItem value="48">48 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  onClick={handleSaveSettings}
                   disabled={updateSettingsMutation.isPending}
                 >
-                  {updateSettingsMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Settings"
+                  {updateSettingsMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
+                  Save Changes
                 </Button>
               </CardContent>
             </Card>

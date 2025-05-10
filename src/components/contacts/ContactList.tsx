@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,16 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+interface ContactGroup {
+  groups: {
+    name: string;
+  };
+}
+
+interface SupabaseError {
+  message: string;
+}
 
 const ContactList = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -28,7 +37,7 @@ const ContactList = () => {
       
       const { data, error } = await supabase
         .from("contacts")
-        .select("*, contact_groups(group_id), groups(id, name)")
+        .select("*, contact_groups!inner(groups(id, name))")
         .eq("user_id", user.id);
       
       if (error) {
@@ -39,9 +48,9 @@ const ContactList = () => {
       
       // Process the contacts to extract groups
       return data.map((contact) => {
-        const contactGroups = contact.groups
-          ? Array.isArray(contact.groups)
-            ? contact.groups.map((group: any) => group.name)
+        const contactGroups = contact.contact_groups
+          ? Array.isArray(contact.contact_groups)
+            ? contact.contact_groups.map((group: ContactGroup) => group.groups.name)
             : []
           : [];
           
@@ -110,7 +119,6 @@ const ContactList = () => {
             .select("id")
             .eq("name", groupName)
             .eq("user_id", user!.id);
-          
           if (existingGroups && existingGroups.length > 0) {
             groupId = existingGroups[0].id;
           } else {
@@ -146,7 +154,7 @@ const ContactList = () => {
       setIsDialogOpen(false);
       toast.success("Contact added successfully");
     },
-    onError: (error: any) => {
+    onError: (error: SupabaseError) => {
       console.error("Error adding contact:", error);
       toast.error(error.message || "Failed to add contact");
     }
@@ -236,7 +244,7 @@ const ContactList = () => {
       setIsDialogOpen(false);
       toast.success("Contact updated successfully");
     },
-    onError: (error: any) => {
+    onError: (error: SupabaseError) => {
       console.error("Error updating contact:", error);
       toast.error(error.message || "Failed to update contact");
     }
@@ -258,7 +266,7 @@ const ContactList = () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       toast.success("Contact deleted");
     },
-    onError: (error: any) => {
+    onError: (error: SupabaseError) => {
       console.error("Error deleting contact:", error);
       toast.error(error.message || "Failed to delete contact");
     }
@@ -338,7 +346,15 @@ const ContactList = () => {
             </SelectContent>
           </Select>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog 
+            open={isDialogOpen} 
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setEditingContact(null);
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -375,20 +391,6 @@ const ContactList = () => {
             />
           ))}
         </div>
-      )}
-      
-      {editingContact && (
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) setEditingContact(null);
-        }}>
-          <AddContactDialog 
-            onSave={handleAddContact} 
-            onEdit={handleEditContact}
-            existingContact={editingContact}
-            existingGroups={allGroups}
-          />
-        </Dialog>
       )}
     </div>
   );
