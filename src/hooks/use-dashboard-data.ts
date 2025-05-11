@@ -221,32 +221,51 @@ export const useUpcomingReminders = () => {
   });
 };
 
-// Hook to fetch neglected contacts
+// Hook to fetch contacts with nearest past due, uncompleted reminders
 export const useNeglectedContacts = () => {
   const { user } = useAuth();
-  
+
   return useQuery({
-    queryKey: ["neglected-contacts", user?.id],
+    queryKey: ["neglected-contacts-past-due-reminders", user?.id], // Updated queryKey
     queryFn: async () => {
       if (!user) throw new Error("User not authenticated");
-      
-      // Get contacts that haven't been contacted recently
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Get contacts with the most recent past due, non-completed reminders
       const { data, error } = await supabase
-        .from("contacts")
-        .select("id, name, email, last_contacted")
+        .from("reminders")
+        .select(`
+          id, 
+          date,
+          time,
+          purpose,
+          contact_id,
+          contacts (
+            id,
+            name
+          )
+        `)
         .eq("user_id", user.id)
-        .order("last_contacted", { ascending: true, nullsFirst: true })
-        .limit(2);
-      
-      if (error) throw error;
-      
-      return data.map(contact => ({
-        id: contact.id,
-        name: contact.name,
-        email: contact.email || "",
-        lastContacted: contact.last_contacted 
-          ? formatLastContactedDate(new Date(contact.last_contacted))
-          : "Never contacted"
+        .eq("is_completed", false)
+        .lte("date", today) // Reminder date is less than or equal to today (in the past or today)
+        .order("date", { ascending: false }) // Most recent past dates first
+        .order("time", { ascending: false, nullsFirst: false }) // Most recent past times first
+        .limit(2); 
+
+      if (error) {
+        console.error("Error fetching contacts with past due reminders:", error);
+        throw error;
+      }
+
+      return data.map(reminder => ({
+        contactId: reminder.contacts?.id,
+        contactName: reminder.contacts?.name || "Unknown Contact",
+        reminderId: reminder.id,
+        reminderDate: reminder.date,
+        reminderTime: reminder.time,
+        reminderPurpose: reminder.purpose,
+        displayDate: formatReminderDate(reminder.date, reminder.time), 
       }));
     },
     enabled: !!user,
@@ -288,6 +307,27 @@ export const useRecentActivity = () => {
         action: getMediumAction(conversation.medium),
         date: formatActivityDate(new Date(conversation.created_at))
       }));
+    },
+    enabled: !!user,
+  });
+};
+
+// Hook to fetch all conversations
+export const useAllConversations = () => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["all-conversations", user?.id],
+    queryFn: async () => {
+      if (!user) throw new Error("User not authenticated");
+
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("id, contact_id")
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+      return data;
     },
     enabled: !!user,
   });

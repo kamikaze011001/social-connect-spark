@@ -93,11 +93,10 @@ const SettingsPage = () => {
   useEffect(() => {
     if (settings) {
       setEmailNotifications(settings.email_notifications);
-      setNextTheme(settings.theme);
       setReminderAdvanceNotice(settings.reminder_advance_notice.toString());
       setTimezone(settings.timezone);
     }
-  }, [settings, setNextTheme]);
+  }, [settings]);
   
   // Update settings mutation
   const updateSettingsMutation = useMutation({
@@ -120,7 +119,7 @@ const SettingsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast.success("Settings updated successfully");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Error updating settings:", error);
       toast.error("Failed to update settings");
     },

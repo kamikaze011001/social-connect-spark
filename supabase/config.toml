@@ -5,4 +5,4 @@ project_id = "tcbmqlkejoejfrouoqfv"
 verify_jwt = true
 
 [functions.check-upcoming-reminders]
-verify_jwt = false
+verify_jwt = true

@@ -79,9 +79,12 @@ const handler = async (req: Request): Promise<Response> => {
         
         // Send email notification
         const contactName = reminder.contacts?.name || "your contact";
+        let emailSent = false;
+        let inAppNotificationCreated = false;
         
+        // 1. Send Email Notification
         try {
-          const response = await fetch(`${supabaseUrl}/functions/v1/send-reminder-email`, {
+          const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-reminder-email`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -96,24 +99,65 @@ const handler = async (req: Request): Promise<Response> => {
             }),
           });
           
-          if (!response.ok) {
-            throw new Error(`Failed to send email: ${await response.text()}`);
+          if (!emailResponse.ok) {
+            console.error(`Failed to send email for reminder ${reminder.id}: ${await emailResponse.text()}`);
+            // Do not throw here, try to create in-app notification anyway
+          } else {
+            emailSent = true;
           }
-          
-          return {
-            id: reminder.id,
-            status: "success",
-            contact: contactName,
-            email: userData.email,
-          };
-        } catch (error) {
-          console.error(`Error sending notification for reminder ${reminder.id}:`, error);
-          return {
-            id: reminder.id,
-            status: "error",
-            message: error.message,
-          };
+        } catch (emailError) {
+          console.error(`Error sending email notification for reminder ${reminder.id}:`, emailError);
         }
+
+        // 2. Create In-App Notification
+        try {
+          const notificationTitle = `Reminder: Connect with ${contactName}`;
+          const notificationMessage = `Your reminder for ${contactName} regarding "${reminder.purpose}" is scheduled for ${reminder.date}${reminder.time ? ` at ${reminder.time}` : ''}.`;
+          
+          const { error: notificationError } = await supabase
+            .from("notifications")
+            .insert({
+              user_id: reminder.user_id,
+              reminder_id: reminder.id,
+              type: "reminder_due",
+              title: notificationTitle,
+              message: notificationMessage,
+              data: { path: `/reminders` }, // Or potentially /reminders/${reminder.id}
+            });
+
+          if (notificationError) {
+            console.error(`Failed to create in-app notification for reminder ${reminder.id}:`, notificationError);
+          } else {
+            inAppNotificationCreated = true;
+          }
+        } catch (inAppError) {
+          console.error(`Error creating in-app notification for reminder ${reminder.id}:`, inAppError);
+        }
+        
+        // Determine overall status
+        let status = "error";
+        let message = "";
+
+        if (emailSent && inAppNotificationCreated) {
+          status = "success";
+          message = "Email and in-app notification processed.";
+        } else if (emailSent) {
+          status = "partial_success";
+          message = "Email sent, but failed to create in-app notification.";
+        } else if (inAppNotificationCreated) {
+          status = "partial_success";
+          message = "In-app notification created, but failed to send email.";
+        } else {
+          message = "Failed to send email and create in-app notification.";
+        }
+
+        return {
+          id: reminder.id,
+          status: status,
+          message: message,
+          contact: contactName,
+          email: userData.email, // Still useful for logging/debugging
+        };
       })
     );
     
@@ -123,10 +167,11 @@ const handler = async (req: Request): Promise<Response> => {
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
     console.error("Error in check-upcoming-reminders function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

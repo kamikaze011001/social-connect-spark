@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ContactType } from "../contacts/ContactCard";
-import { Calendar as CalendarIcon, Clock, Gift, Bell } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Gift, Bell, Info } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,6 +21,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ReminderFormProps {
   contacts: ContactType[];
+}
+
+interface NewReminderData {
+  user_id: string;
+  contact_id: string | null;
+  date: string;
+  time: string | null;
+  purpose: string;
+  is_recurring: boolean;
+  frequency: string | null;
+  is_completed: boolean;
 }
 
 const ReminderForm = ({ contacts }: ReminderFormProps) => {
@@ -39,7 +51,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
   const [notifyInAdvance, setNotifyInAdvance] = useState<string>("7");
   
   const createReminderMutation = useMutation({
-    mutationFn: async (reminderData: any) => {
+    mutationFn: async (reminderData: NewReminderData) => {
       const { error } = await supabase
         .from("reminders")
         .insert(reminderData);
@@ -62,7 +74,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
       setNotifyInAdvance("7");
       setSendNotification(true);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Error creating reminder:", error);
       toast.error("Failed to create reminder");
     },
@@ -158,8 +170,8 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
           
           <TabsContent value="standard" className="space-y-4 pt-2">
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="recurring">Recurring Reminder</Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Label htmlFor="recurring" className="mb-1 sm:mb-0">Recurring Reminder</Label>
                 <Switch 
                   id="recurring" 
                   checked={isRecurring} 
@@ -211,7 +223,19 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="time">Time (optional)</Label>
+                  <div className="flex items-center space-x-1">
+                    <Label htmlFor="time">Time (optional)</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Setting a time helps specify when the event occurs. <br />Notifications are sent the day before the reminder's date, <br />regardless of whether a time is set.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Input
                     id="time"
                     type="time"
@@ -223,8 +247,8 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
             )}
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="notification" className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Label htmlFor="notification" className="flex items-center gap-2 mb-1 sm:mb-0">
                   <Bell className="h-4 w-4" />
                   Send Email Notification
                 </Label>
@@ -236,7 +260,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
               </div>
               {sendNotification && (
                 <p className="text-xs text-muted-foreground">
-                  You'll receive an email notification the day before your reminder
+                  An email notification will be sent the day before your reminder's date. If you set a time, it will be mentioned in the email.
                 </p>
               )}
             </div>
@@ -312,8 +336,8 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="notification-special" className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Label htmlFor="notification-special" className="flex items-center gap-2 mb-1 sm:mb-0">
                   <Bell className="h-4 w-4" />
                   Send Email Notification
                 </Label>
@@ -342,7 +366,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
           <Bell className="h-4 w-4" />
           <AlertTitle>About Email Notifications</AlertTitle>
           <AlertDescription>
-            Email notifications will be sent the day before the reminder date. Make sure your email address is up to date in your profile.
+            Email notifications will be sent the day before the reminder date. Make sure your email address is up to date in your profile. This applies whether or not a specific time is set for the reminder.
           </AlertDescription>
         </Alert>
         

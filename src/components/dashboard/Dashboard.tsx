@@ -15,7 +15,8 @@ import {
   useMonthlyConversationData,
   useUpcomingReminders,
   useNeglectedContacts,
-  useRecentActivity
+  useRecentActivity,
+  useAllConversations
 } from "@/hooks/use-dashboard-data";
 import { ContactType } from "../contacts/ContactCard";
 
@@ -34,6 +35,7 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
   const { data: upcomingReminders, isLoading: loadingUpcomingReminders } = useUpcomingReminders();
   const { data: neglectedContacts, isLoading: loadingNeglectedContacts } = useNeglectedContacts();
   const { data: recentActivity, isLoading: loadingRecentActivity } = useRecentActivity();
+  const { data: allConversations, isLoading: loadingAllConversations } = useAllConversations();
   
   const isLoading = 
     loadingContacts || 
@@ -42,7 +44,8 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
     loadingMonthlyData ||
     loadingUpcomingReminders ||
     loadingNeglectedContacts ||
-    loadingRecentActivity;
+    loadingRecentActivity ||
+    loadingAllConversations;
   
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -141,7 +144,14 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
                     </div>
                     <div className="flex space-x-2">
                       <Badge variant="outline">{reminder.type}</Badge>
-                      <ReminderActions reminderId={reminder.id} />
+                      <ReminderActions 
+                        reminderId={reminder.id}
+                        contactId={reminder.contactId}
+                        contactName={reminder.contactName}
+                        hasConversationForContact={
+                          !!allConversations?.find(conv => conv.contact_id === reminder.contactId)
+                        } 
+                      />
                     </div>
                   </div>
                 ))}
@@ -150,12 +160,12 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
           </CardContent>
         </Card>
 
-        {/* Neglected contacts */}
+        {/* Past Due Reminders (formerly Neglected Contacts) */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
-              <CardTitle>Neglected Contacts</CardTitle>
-              <Button variant="ghost" size="sm" className="text-sm" onClick={() => navigate('/contacts')}>
+              <CardTitle>Past Due Reminders</CardTitle>
+              <Button variant="ghost" size="sm" className="text-sm" onClick={() => navigate('/reminders')}>
                 View All
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
@@ -163,23 +173,33 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
           </CardHeader>
           <CardContent>
             {!neglectedContacts || neglectedContacts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No neglected contacts</p>
+              <p className="text-sm text-muted-foreground">No past due reminders</p>
             ) : (
               <div className="space-y-4">
-                {neglectedContacts.map((contact) => (
-                  <div key={contact.id} className="flex items-center justify-between">
+                {neglectedContacts.map((item) => (
+                  <div key={item.reminderId} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <Avatar className="h-9 w-9">
                         <AvatarFallback className="bg-brand-300 text-white">
-                          {contact.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                          {item.contactName.split(' ').map(n => n[0]).join('').toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{contact.name}</p>
-                        <p className="text-sm text-muted-foreground">{contact.lastContacted}</p>
+                        <p className="font-medium">{item.contactName}</p>
+                        <p className="text-sm text-muted-foreground">{item.displayDate}</p>
                       </div>
                     </div>
-                    <ContactActions contactId={contact.id} contactName={contact.name} />
+                    <div className="flex space-x-2">
+                      <Badge variant="outline">{item.reminderPurpose}</Badge>
+                      <ReminderActions 
+                        reminderId={item.reminderId}
+                        contactId={item.contactId}
+                        contactName={item.contactName}
+                        hasConversationForContact={
+                          !!allConversations?.find(conv => conv.contact_id === item.contactId)
+                        } 
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

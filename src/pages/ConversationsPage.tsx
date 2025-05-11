@@ -94,7 +94,7 @@ const ConversationsPage = () => {
         medium: conv.medium,
         duration: conv.duration || "",
         summary: conv.summary || "",
-        notes: conv.conversation_notes ? conv.conversation_notes.map((note: any) => ({
+        notes: conv.conversation_notes ? conv.conversation_notes.map((note: { id: string; content: string; timestamp: string }) => ({
           id: note.id,
           content: note.content,
           timestamp: note.timestamp
@@ -144,7 +144,7 @@ const ConversationsPage = () => {
       setIsDialogOpen(false);
       toast.success("Conversation saved successfully");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Error adding conversation:", error);
       toast.error(error.message || "Failed to add conversation");
     },
@@ -166,7 +166,7 @@ const ConversationsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       toast.success("Conversation deleted successfully");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Error deleting conversation:", error);
       toast.error(error.message || "Failed to delete conversation");
     },
@@ -249,7 +249,7 @@ const ConversationsPage = () => {
                   />
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 justify-end">
                   <Select 
                     value={filterContact} 
                     onValueChange={setFilterContact}
@@ -291,7 +291,7 @@ const ConversationsPage = () => {
                         Add Conversation
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]">
+                    <DialogContent className="p-4 w-[90vw] max-w-lg max-h-[85vh] overflow-y-auto sm:max-w-[600px] sm:p-6">
                       <ConversationForm 
                         contacts={contacts}
                         onSave={handleSaveConversation}

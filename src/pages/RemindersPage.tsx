@@ -23,6 +23,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAllConversations } from "@/hooks/use-dashboard-data"; // Added
+import { ReminderActions } from "@/components/dashboard/ReminderActions"; // Added
 
 // Define Reminder type
 interface Reminder {
@@ -43,6 +45,8 @@ const RemindersPage = () => {
   const { user, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [checkingReminders, setCheckingReminders] = useState(false);
+
+  const { data: allConversations, isLoading: loadingAllConversations } = useAllConversations(); // Added
 
   // Fetch contacts
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
@@ -110,9 +114,9 @@ const RemindersPage = () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success("Reminder updated");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Error updating reminder:", error);
-      toast.error("Failed to update reminder");
+      toast.error("Failed to update reminder: " + error.message);
     },
   });
 
@@ -131,9 +135,9 @@ const RemindersPage = () => {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success("Reminder deleted");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Error deleting reminder:", error);
-      toast.error("Failed to delete reminder");
+      toast.error("Failed to delete reminder: " + error.message);
     },
   });
 
@@ -143,11 +147,15 @@ const RemindersPage = () => {
     
     setCheckingReminders(true);
     try {
-      const { data, error } = await supabase.functions.invoke('check-upcoming-reminders');
+      // Define a more specific type for the expected function response
+      type ReminderCheckResult = { status: string; [key: string]: unknown };
+      type FunctionResponse = { results?: ReminderCheckResult[] };
+
+      const { data, error } = await supabase.functions.invoke<FunctionResponse>('check-upcoming-reminders');
       
       if (error) throw error;
       
-      const processed = data?.results?.filter((r: any) => r.status === 'success').length || 0;
+      const processed = data?.results?.filter((r: ReminderCheckResult) => r.status === 'success').length || 0;
       
       if (processed > 0) {
         toast.success(`Sent ${processed} reminder notification(s)`);
@@ -155,9 +163,10 @@ const RemindersPage = () => {
         toast.info("No upcoming reminders to send notifications for");
       }
       
-    } catch (error: any) {
-      console.error("Error checking reminders:", error);
-      toast.error("Failed to check reminders");
+    } catch (error) {
+      const typedError = error as Error;
+      console.error("Error checking reminders:", typedError);
+      toast.error("Failed to check reminders: " + typedError.message);
     } finally {
       setCheckingReminders(false);
     }
@@ -171,7 +180,7 @@ const RemindersPage = () => {
     }
   }, [navigate, user, isLoading]);
 
-  if (isLoading || contactsLoading || remindersLoading) {
+  if (isLoading || contactsLoading || remindersLoading || loadingAllConversations) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-lg">Loading...</p>
@@ -197,20 +206,14 @@ const RemindersPage = () => {
     }
   };
 
-  const toggleReminderCompletion = (reminder: Reminder) => {
-    updateReminderMutation.mutate({
-      id: reminder.id,
-      is_completed: !reminder.is_completed,
-    });
-  };
-
   const deleteReminder = (id: string) => {
-    if (confirm("Are you sure you want to delete this reminder?")) {
+    // confirm is a browser blocking dialog, consider using a custom modal for better UX
+    if (window.confirm("Are you sure you want to delete this reminder?")) {
       deleteReminderMutation.mutate(id);
     }
   };
 
-  const ReminderCard = ({ reminder }: { reminder: Reminder }) => {
+  const ReminderCard = ({ reminder, hasConversationForContact }: { reminder: Reminder; hasConversationForContact: boolean }) => {
     const contact = getContactById(reminder.contact_id);
     
     return (
@@ -265,23 +268,29 @@ const RemindersPage = () => {
                   </TooltipContent>
                 </Tooltip>
               )}
+              {/* Conditional rendering for actions based on completion status */}
+              {reminder.is_completed ? (
+                <Badge variant="outline" className="text-green-600 border-green-600 py-1 px-2">
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  Completed
+                </Badge>
+              ) : (
+                <>
+                  {reminder.contact_id && (
+                    <ReminderActions
+                      reminderId={reminder.id}
+                      contactId={reminder.contact_id}
+                      contactName={contact.name}
+                      hasConversationForContact={hasConversationForContact}
+                    />
+                  )}
+                </>
+              )}
+              {/* Edit and Delete buttons - consider if they should be shown for completed items */}
+              {/* For now, keeping them visible as per current structure, user can specify if they need to be hidden/disabled */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => toggleReminderCompletion(reminder)}
-                  >
-                    <CheckCircle className={`h-5 w-5 ${reminder.is_completed ? 'text-green-500' : 'text-gray-300'}`} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{reminder.is_completed ? 'Mark as Incomplete' : 'Mark as Complete'}</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" onClick={() => toast.info("Edit functionality to be implemented.")} disabled={reminder.is_completed}> {/* Optionally disable edit for completed */}
                     <Edit className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -375,13 +384,14 @@ const RemindersPage = () => {
                       <>
                         <Alert className="mb-4 bg-muted/50">
                           <Bell className="h-4 w-4" />
-                          <AlertDescription>
+                        <AlertDescription>
                             Email notifications for upcoming reminders are sent automatically one day before the reminder date.
                           </AlertDescription>
                         </Alert>
-                        {upcomingReminders.map(reminder => (
-                          <ReminderCard key={reminder.id} reminder={reminder} />
-                        ))}
+                        {upcomingReminders.map(reminder => {
+                          const hasConvo = !!allConversations?.find(c => c.contact_id === reminder.contact_id);
+                          return <ReminderCard key={reminder.id} reminder={reminder} hasConversationForContact={hasConvo} />;
+                        })}
                       </>
                     )}
                   </TabsContent>
@@ -392,9 +402,10 @@ const RemindersPage = () => {
                         <p className="text-muted-foreground">No completed reminders</p>
                       </div>
                     ) : (
-                      completedReminders.map(reminder => (
-                        <ReminderCard key={reminder.id} reminder={reminder} />
-                      ))
+                      completedReminders.map(reminder => {
+                        const hasConvo = !!allConversations?.find(c => c.contact_id === reminder.contact_id);
+                        return <ReminderCard key={reminder.id} reminder={reminder} hasConversationForContact={hasConvo} />;
+                      })
                     )}
                   </TabsContent>
                 </Tabs>
