@@ -150,7 +150,7 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
                         contactName={reminder.contactName}
                         hasConversationForContact={
                           !!allConversations?.find(conv => conv.contact_id === reminder.contactId)
-                        } 
+                        }
                       />
                     </div>
                   </div>
@@ -197,7 +197,7 @@ const Dashboard = ({ contacts = [] }: DashboardProps) => {
                         contactName={item.contactName}
                         hasConversationForContact={
                           !!allConversations?.find(conv => conv.contact_id === item.contactId)
-                        } 
+                        }
                       />
                     </div>
                   </div>

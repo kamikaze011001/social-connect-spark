@@ -21,15 +21,17 @@ interface ReminderActionsProps {
   contactId: string; // Added
   contactName?: string; // Added for ConversationForm's toast
   hasConversationForContact: boolean;
+  // isPastDueReminder?: boolean; // Prop removed
 }
 
 export const ReminderActions = ({ 
   reminderId, 
   contactId,
   contactName,
-  hasConversationForContact 
+  hasConversationForContact // isPastDueReminder prop removed
 }: ReminderActionsProps) => {
-  console.log("ReminderActions props:", { reminderId, contactId, contactName, hasConversationForContact });
+  // console.log("ReminderActions props:", { reminderId, contactId, contactName, hasConversationForContact }); // Original log
+  console.log("ReminderActions props:", { reminderId, contactId, contactName, hasConversationForContact }); // Updated log without isPastDueReminder
   const [isCompleting, setIsCompleting] = useState(false);
   const [isSavingConversation, setIsSavingConversation] = useState(false);
   const [isConversationModalOpen, setIsConversationModalOpen] = useState(false);
@@ -138,15 +140,11 @@ export const ReminderActions = ({
     }
   };
 
-  const handleCompleteClick = () => {
-    console.log("handleCompleteClick called. hasConversationForContact:", hasConversationForContact);
-    if (hasConversationForContact) {
-      console.log("Calling completeReminderMutation directly for reminderId:", reminderId);
-      completeReminderMutation.mutate(reminderId);
-    } else {
-      console.log("Opening conversation modal for contactId:", contactId);
-      setIsConversationModalOpen(true);
-    }
+const handleCompleteClick = () => {
+    // console.log("handleCompleteClick called. hasConversationForContact:", hasConversationForContact, "isPastDueReminder:", isPastDueReminder); // Original log
+    console.log("handleCompleteClick called. Always opening conversation modal. ContactId:", contactId, "ReminderId:", reminderId);
+    // Always open the modal to log a conversation before completing any reminder
+    setIsConversationModalOpen(true);
   };
 
   // Minimal contact prop for ConversationForm

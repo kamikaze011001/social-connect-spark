@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,35 +6,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ContactType } from "../contacts/ContactCard";
-import { Calendar as CalendarIcon, Clock, Gift, Bell, Info } from "lucide-react";
+// Removed Tables import as fetchedSpecialDates is removed
+import { Calendar as CalendarIcon, Clock, Bell, Info } from "lucide-react"; // Removed Gift
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { format } from "date-fns";
+import { format } from "date-fns"; // Removed subDays
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+// Removed Tabs related imports: Tabs, TabsContent, TabsList, TabsTrigger
+// import { supabase } from "@/integrations/supabase/client"; // No longer directly used
 import { useAuth } from "@/contexts/AuthContext";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+// import { useMutation, useQueryClient } from "@tanstack/react-query"; // No longer directly used
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useCreateReminder, NewReminderData } from "@/hooks/useCreateReminder"; // Corrected path
 
 interface ReminderFormProps {
   contacts: ContactType[];
 }
 
-interface NewReminderData {
-  user_id: string;
-  contact_id: string | null;
-  date: string;
-  time: string | null;
-  purpose: string;
-  is_recurring: boolean;
-  frequency: string | null;
-  is_completed: boolean;
-}
+// NewReminderData interface is now imported from the hook
 
 const ReminderForm = ({ contacts }: ReminderFormProps) => {
-  const [activeTab, setActiveTab] = useState<string>("standard");
+  // Removed activeTab state
   const [selectedContact, setSelectedContact] = useState<string>("none");
   const [date, setDate] = useState<Date | undefined>();
   const [time, setTime] = useState<string>("");
@@ -43,61 +35,16 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState("weekly");
   const [sendNotification, setSendNotification] = useState(true);
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const { user } = useAuth(); // Still needed for user check and potentially passing user_id if hook didn't handle it
   
-  // Special date specific fields
-  const [specialDateType, setSpecialDateType] = useState<string>("birthday");
-  const [notifyInAdvance, setNotifyInAdvance] = useState<string>("7");
+  const { createReminder, isCreatingReminder } = useCreateReminder();
   
-  const createReminderMutation = useMutation({
-    mutationFn: async (reminderData: NewReminderData) => {
-      const { error } = await supabase
-        .from("reminders")
-        .insert(reminderData);
-        
-      if (error) throw error;
-      return reminderData;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reminders"] });
-      toast.success("Reminder created");
-      
-      // Reset form
-      setSelectedContact("none");
-      setDate(undefined);
-      setTime("");
-      setPurpose("");
-      setIsRecurring(false);
-      setRecurringFrequency("weekly");
-      setSpecialDateType("birthday");
-      setNotifyInAdvance("7");
-      setSendNotification(true);
-    },
-    onError: (error: Error) => {
-      console.error("Error creating reminder:", error);
-      toast.error("Failed to create reminder");
-    },
-  });
+  // Removed special date specific fields:
+  // specialDateType, notifyInAdvance, fetchedSpecialDates, selectedSpecialDateIndex
   
-  // Fetch special dates for selected contact
-  const getSpecialDates = async (contactId: string) => {
-    if (!contactId || contactId === "none") return [];
-    
-    try {
-      const { data, error } = await supabase
-        .from("special_dates")
-        .select("*")
-        .eq("contact_id", contactId);
-        
-      if (error) throw error;
-      
-      return data || [];
-    } catch (error) {
-      console.error("Error fetching special dates:", error);
-      return [];
-    }
-  };
+  // createReminderMutation is now in useCreateReminder hook
+  
+  // Removed getSpecialDates function
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,41 +53,51 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
       toast.error("You must be logged in to create a reminder");
       return;
     }
-    
+
+    const finalDateToUse: Date = date || new Date(); // Fallback for recurring without a specific start date
+
+    // Simplified handleSubmit logic, removed "special" tab handling
     if (!date && !isRecurring) {
-      toast.error("Please select a date");
+      toast.error("Please select a date for a standard reminder.");
       return;
     }
+    // finalDateToUse is now assigned above
     
     // Format date to YYYY-MM-DD
-    const formattedDate = date ? format(date, "yyyy-MM-dd") : new Date().toISOString().split("T")[0];
+    const formattedDate = format(finalDateToUse, "yyyy-MM-dd");
     
-    const reminderData = {
-      user_id: user.id,
+    // Prepare data for the hook, omitting user_id and is_completed as the hook handles them
+    const reminderDataForHook: Omit<NewReminderData, "user_id" | "is_completed"> = {
       contact_id: selectedContact !== "none" ? selectedContact : null,
       date: formattedDate,
       time: time || null,
       purpose,
       is_recurring: isRecurring,
       frequency: isRecurring ? recurringFrequency : null,
-      is_completed: false
+      send_email_notification: sendNotification,
     };
     
-    createReminderMutation.mutate(reminderData);
-    
-    // If notification is enabled, we'll show a success message
-    // The actual notification will be handled by our scheduled task
-    if (sendNotification) {
-      toast.success("Email notification will be sent before the reminder");
-    }
+    createReminder(reminderDataForHook, {
+      onSuccess: () => {
+        // Reset form fields locally after successful creation by the hook
+        setSelectedContact("none");
+        setDate(undefined);
+        setTime("");
+        setPurpose("");
+        setIsRecurring(false);
+        setRecurringFrequency("weekly");
+        setSendNotification(true);
+        // The hook's onSuccess already handles toast.success("Reminder created successfully!")
+        // and query invalidation.
+        // The hook's onSuccess also handles the toast.info for email notification.
+      },
+      // onError is handled by the hook's own onError
+    });
   };
 
-  // Find any special dates for the selected contact
-  const selectedContactData = selectedContact && selectedContact !== "none" ? 
-    contacts.find(c => c.id === selectedContact) : null;
+  // Removed selectedContactData (was used for special dates)
     
-  // Placeholder for special dates - in a real app, these would be fetched from the database
-  const specialDates = selectedContactData?.specialDates || [];
+  // Removed useEffect hook that fetched special dates
 
   return (
     <form onSubmit={handleSubmit}>
@@ -162,13 +119,8 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
           </Select>
         </div>
         
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="standard">Standard Reminder</TabsTrigger>
-            <TabsTrigger value="special">Special Date</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="standard" className="space-y-4 pt-2">
+        {/* Tabs removed, directly showing standard reminder fields */}
+        <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <Label htmlFor="recurring" className="mb-1 sm:mb-0">Recurring Reminder</Label>
@@ -264,92 +216,7 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
                 </p>
               )}
             </div>
-          </TabsContent>
-          
-          <TabsContent value="special" className="space-y-4 pt-2">
-            {selectedContact && selectedContact !== "none" && specialDates.length > 0 ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="specialDate">Existing Special Dates</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a special date" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {specialDates.map((date, index) => (
-                        <SelectItem key={index} value={`${index}`}>
-                          {date.type}: {new Date(date.date).toLocaleDateString()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-muted-foreground">
-                    Or set a reminder for a new special date below
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-md bg-muted p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Gift className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium">No special dates found</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Add special dates like birthdays, anniversaries, etc. when editing contacts.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="specialDateType">Type</Label>
-              <Select value={specialDateType} onValueChange={setSpecialDateType}>
-                <SelectTrigger id="specialDateType">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="birthday">Birthday</SelectItem>
-                  <SelectItem value="anniversary">Anniversary</SelectItem>
-                  <SelectItem value="important_date">Important Date</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="notifyInAdvance">Notify in advance</Label>
-              <Select value={notifyInAdvance} onValueChange={setNotifyInAdvance}>
-                <SelectTrigger id="notifyInAdvance">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">On the day</SelectItem>
-                  <SelectItem value="1">1 day before</SelectItem>
-                  <SelectItem value="3">3 days before</SelectItem>
-                  <SelectItem value="7">1 week before</SelectItem>
-                  <SelectItem value="14">2 weeks before</SelectItem>
-                  <SelectItem value="30">1 month before</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <Label htmlFor="notification-special" className="flex items-center gap-2 mb-1 sm:mb-0">
-                  <Bell className="h-4 w-4" />
-                  Send Email Notification
-                </Label>
-                <Switch 
-                  id="notification-special" 
-                  checked={sendNotification} 
-                  onCheckedChange={setSendNotification} 
-                />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        </div> {/* This closes the div that replaced TabsContent value="standard" */}
         
         <div className="space-y-2">
           <Label htmlFor="purpose">Purpose</Label>
@@ -371,11 +238,11 @@ const ReminderForm = ({ contacts }: ReminderFormProps) => {
         </Alert>
         
         <Button type="submit" className="w-full" disabled={
-          !purpose || 
-          (activeTab === "standard" && !isRecurring && !date) ||
-          createReminderMutation.isPending
+          !purpose ||
+          (!isRecurring && !date) || // Simplified disabled condition
+          isCreatingReminder
         }>
-          {createReminderMutation.isPending ? "Setting reminder..." : "Set Reminder"}
+          {isCreatingReminder ? "Setting reminder..." : "Set Reminder"}
         </Button>
       </div>
     </form>

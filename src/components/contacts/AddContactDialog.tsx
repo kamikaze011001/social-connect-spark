@@ -6,7 +6,10 @@ import { Label } from "@/components/ui/label";
 import { ContactType } from "./ContactCard";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { X, Linkedin, Twitter, Instagram, Facebook, Calendar, Plus } from "lucide-react";
+import { X, Linkedin, Twitter, Instagram, Facebook, Plus } from "lucide-react"; // Removed Calendar as it's not used directly here anymore
+import SocialLinksFormSection from "./SocialLinksFormSection";
+import SpecialDatesFormSection from "./SpecialDatesFormSection";
+import GroupsFormSection from "./GroupsFormSection";
 
 interface AddContactDialogProps {
   onSave: (contact: ContactType) => void;
@@ -18,7 +21,7 @@ interface AddContactDialogProps {
 const AddContactDialog = ({ 
   onSave, 
   onEdit, 
-  existingContact = null,
+  existingContact, // Default ' = null' removed, useEffect handles undefined/null
   existingGroups = []
 }: AddContactDialogProps) => {
   const [name, setName] = useState("");
@@ -260,181 +263,37 @@ const AddContactDialog = ({
           <AccordionItem value="social-links">
             <AccordionTrigger>Social Media Links</AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <Linkedin className="h-4 w-4 mr-2 text-blue-600" />
-                    <Label htmlFor="linkedin">LinkedIn</Label>
-                  </div>
-                  <Input
-                    id="linkedin"
-                    value={socialLinks.linkedin}
-                    onChange={(e) => handleSocialLinkChange('linkedin', e.target.value)}
-                    placeholder="https://linkedin.com/in/username"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <Twitter className="h-4 w-4 mr-2 text-blue-400" />
-                    <Label htmlFor="twitter">Twitter</Label>
-                  </div>
-                  <Input
-                    id="twitter"
-                    value={socialLinks.twitter}
-                    onChange={(e) => handleSocialLinkChange('twitter', e.target.value)}
-                    placeholder="https://twitter.com/username"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <Instagram className="h-4 w-4 mr-2 text-pink-500" />
-                    <Label htmlFor="instagram">Instagram</Label>
-                  </div>
-                  <Input
-                    id="instagram"
-                    value={socialLinks.instagram}
-                    onChange={(e) => handleSocialLinkChange('instagram', e.target.value)}
-                    placeholder="https://instagram.com/username"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <Facebook className="h-4 w-4 mr-2 text-blue-500" />
-                    <Label htmlFor="facebook">Facebook</Label>
-                  </div>
-                  <Input
-                    id="facebook"
-                    value={socialLinks.facebook}
-                    onChange={(e) => handleSocialLinkChange('facebook', e.target.value)}
-                    placeholder="https://facebook.com/username"
-                  />
-                </div>
-              </div>
+              <SocialLinksFormSection 
+                socialLinks={socialLinks} 
+                onSocialLinkChange={handleSocialLinkChange} 
+              />
             </AccordionContent>
           </AccordionItem>
           
           <AccordionItem value="special-dates">
             <AccordionTrigger>Special Dates</AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-4">
-                {specialDates.map((date) => (
-                  <div key={date.id} className="flex items-center justify-between p-2 border rounded-md bg-muted/50 dark:bg-muted/20">
-                    <div>
-                      <p className="font-medium">{date.type.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
-                      <p className="text-sm text-muted-foreground">{new Date(date.date).toLocaleDateString()}</p>
-                      {date.description && <p className="text-xs italic">{date.description}</p>}
-                    </div>
-                    <Button 
-                      type="button"
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => handleRemoveSpecialDate(date.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                
-                <div className="space-y-3 border-t pt-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="specialDateType">Type</Label>
-                    <select
-                      id="specialDateType"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      value={specialDateInput.type}
-                      onChange={(e) => setSpecialDateInput({...specialDateInput, type: e.target.value})}
-                    >
-                      <option value="birthday">Birthday</option>
-                      <option value="anniversary">Anniversary</option>
-                      <option value="important date">Important Date</option>
-                    </select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="specialDate">Date</Label>
-                    <Input
-                      id="specialDate"
-                      type="date"
-                      value={specialDateInput.date}
-                      onChange={(e) => setSpecialDateInput({...specialDateInput, date: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="specialDateDescription">Description (optional)</Label>
-                    <Input
-                      id="specialDateDescription"
-                      value={specialDateInput.description}
-                      onChange={(e) => setSpecialDateInput({...specialDateInput, description: e.target.value})}
-                      placeholder="Description"
-                    />
-                  </div>
-                  
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleAddSpecialDate} 
-                    disabled={!specialDateInput.date}
-                    className="w-full"
-                  >
-                    <Plus className="h-4 w-4 mr-1" /> Add Date
-                  </Button>
-                </div>
-              </div>
+              <SpecialDatesFormSection 
+                specialDates={specialDates} 
+                specialDateInput={specialDateInput} 
+                setSpecialDateInput={setSpecialDateInput} 
+                onAddSpecialDate={handleAddSpecialDate} 
+                onRemoveSpecialDate={handleRemoveSpecialDate} 
+              />
             </AccordionContent>
           </AccordionItem>
         </Accordion>
         
-        <div className="space-y-2">
-          <Label htmlFor="groups">Groups *</Label>
-          <div className="flex flex-wrap gap-1 mb-2">
-            {groups.map((group) => (
-              <Badge key={group} variant="secondary" className="text-sm py-1">
-                {group}
-                <button 
-                  type="button"
-                  onClick={() => handleRemoveGroup(group)}
-                  className="ml-1 hover:text-destructive"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-          <Input
-            id="groups"
-            value={groupInput}
-            onChange={(e) => setGroupInput(e.target.value)}
-            onKeyDown={handleAddGroup}
-            placeholder="Add a group (press Enter)"
-          />
-          <p className="text-xs text-muted-foreground mt-1">Press Enter after typing to add a group.</p>
-          {errors.groups && (
-            <p className="text-destructive text-sm">{errors.groups}</p>
-          )}
-          
-          {existingGroups.length > 0 && groupInput === "" && groups.length === 0 && (
-            <div className="mt-2">
-              <p className="text-sm text-muted-foreground mb-1">Suggestions:</p>
-              <div className="flex flex-wrap gap-1">
-                {existingGroups.map((group) => (
-                  <Badge 
-                    key={group} 
-                    variant="outline" 
-                    className="text-sm cursor-pointer hover:bg-secondary"
-                    onClick={() => handleGroupSuggestionClick(group)}
-                  >
-                    {group}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <GroupsFormSection 
+          groups={groups}
+          groupInput={groupInput}
+          setGroupInput={setGroupInput}
+          onAddGroup={handleAddGroup}
+          onRemoveGroup={handleRemoveGroup}
+          existingGroups={existingGroups}
+          onGroupSuggestionClick={handleGroupSuggestionClick}
+          error={errors.groups}
+        />
 
         <DialogFooter className="pt-4">
           <Button type="submit" className="w-full">
