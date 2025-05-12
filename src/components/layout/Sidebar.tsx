@@ -8,7 +8,8 @@ import {
   LayoutDashboard,
   MessageSquare,
   Settings,
-  Users
+  Users,
+  Bell // Add Bell icon
 } from "lucide-react";
 
 interface SidebarNavProps {
@@ -79,6 +80,11 @@ export function Sidebar() {
               href: "/conversations",
               title: "Conversations",
               icon: <MessageSquare className="h-4 w-4" />,
+            },
+            {
+              href: "/notifications", // Add notifications link
+              title: "Notifications",
+              icon: <Bell className="h-4 w-4" />,
             },
             {
               href: "/profile",

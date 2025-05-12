@@ -11,6 +11,7 @@ import DashboardPage from "./pages/DashboardPage";
 import ContactsPage from "./pages/ContactsPage";
 import RemindersPage from "./pages/RemindersPage";
 import ConversationsPage from "./pages/ConversationsPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="/contacts" element={<ContactsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
               <Route path="/conversations" element={<ConversationsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/settings" element={<SettingsPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
